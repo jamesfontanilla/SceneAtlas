@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Bricolage_Grotesque, Cormorant_Garamond } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const display = Cormorant_Garamond({
@@ -32,7 +31,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <head>
         {adsenseClientId ? (
-          <Script
+          <script
             async
             crossOrigin="anonymous"
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}`}
