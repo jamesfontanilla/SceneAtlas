@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@sceneatlas/shared", "@sceneatlas/db"]
+  transpilePackages: ["@sceneatlas/shared"]
 };
 
 export default nextConfig;

@@ -66,6 +66,7 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
   const returnTo = `/movies/${movie.slug}${spoilers ? "?spoilers=1" : ""}`;
   const averageRating = ratingSummary.averageRating ? formatRating(ratingSummary.averageRating) : "No ratings yet";
   const isOnWatchlist = watchlist.some((item) => item.slug === movie.slug);
+  const watchlistAction = isOnWatchlist ? "remove" : "add";
   const currentCollectionId = collections[0]?.id ?? "";
 
   return (
@@ -147,7 +148,7 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
       </section>
 
       <section className="section">
-        <SectionHeading eyebrow="Actions" title="Save, rate, collect, or export" copy="These controls are backed by the same store the API uses, so they persist across page loads." />
+        <SectionHeading eyebrow="Actions" title="Save, rate, collect, or export" copy="These controls call the API directly, so they persist across page loads." />
         <div className="analysis-grid">
           <Card className="analysis-card">
             <h3 className="analysis-card__title">Watchlist</h3>
@@ -156,6 +157,7 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
             </p>
             <form action={toggleWatchlistAction} className="auth-form">
               <input type="hidden" name="movieId" value={movie.slug} />
+              <input type="hidden" name="watchlistAction" value={watchlistAction} />
               <input type="hidden" name="returnTo" value={returnTo} />
               <Button type="submit" variant={isOnWatchlist ? "secondary" : "primary"}>
                 {isOnWatchlist ? "Remove from watchlist" : "Save to watchlist"}

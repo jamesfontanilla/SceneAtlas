@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { publicNavigation, sceneAtlasBrand } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fetchAccount } from "@/lib/api";
-import { signOutAction } from "@/lib/actions";
 
 export async function SiteHeader() {
   const account = await fetchAccount();
@@ -30,17 +30,19 @@ export async function SiteHeader() {
             <Button href="/search" variant="secondary" className="button--small">
               Open app
             </Button>
-            <form action={signOutAction} className="site-nav__form">
-              <input type="hidden" name="returnTo" value="/" />
-              <Button type="submit" variant="ghost" className="button--small">
-                Sign out
-              </Button>
-            </form>
+            <UserButton />
           </>
         ) : (
-          <Button href="/sign-in" variant="secondary" className="button--small">
-            Sign in
-          </Button>
+          <>
+            <SignInButton mode="modal">
+              <Button variant="secondary" className="button--small">
+                Sign in
+              </Button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <Button className="button--small">Create account</Button>
+            </SignUpButton>
+          </>
         )}
       </nav>
     </header>

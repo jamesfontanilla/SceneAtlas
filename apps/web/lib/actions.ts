@@ -1,9 +1,8 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { sceneAtlasStore, SceneAtlasError } from "@sceneatlas/db";
-import { SESSION_COOKIE, getSessionToken, getSessionUserId } from "./session";
+import { sceneAtlasApiRequest } from "./api";
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -19,88 +18,53 @@ function redirectTo(formData: FormData, fallback: string) {
   return readString(formData, "returnTo") || fallback;
 }
 
-function redirectWithError(path: string, error: unknown) {
-  if (error instanceof SceneAtlasError) {
-    const separator = path.includes("?") ? "&" : "?";
-    redirect(`${path}${separator}error=${encodeURIComponent(error.message)}`);
+function buildRedirectUrl(path: string, params: Record<string, string | undefined> = {}) {
+  const url = new URL(path, "http://localhost");
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      url.searchParams.set(key, value);
+    }
   }
 
-  throw error;
+  return `${url.pathname}${url.search}`;
 }
 
-export async function signUpAction(formData: FormData) {
-  try {
-    const result = sceneAtlasStore.signUp({
-      name: readString(formData, "name"),
-      email: readString(formData, "email"),
-      avatar: readString(formData, "avatar") || undefined,
-      provider: readString(formData, "provider") || "authjs"
-    });
+function redirectWithError(path: string, error: unknown, extraParams: Record<string, string | undefined> = {}) {
+  const message = error instanceof Error ? error.message : String(error);
+  redirect(buildRedirectUrl(path, { ...extraParams, error: message }));
+}
 
-    const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE, result.session.token, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true
-    });
-
-    redirect(redirectTo(formData, "/search"));
-  } catch (error) {
-    redirectWithError("/sign-up", error);
+async function requireSignedIn(returnTo: string) {
+  const { userId } = await auth();
+  if (!userId) {
+    redirect(buildRedirectUrl("/sign-in", { returnTo }));
   }
 }
 
-export async function signInAction(formData: FormData) {
-  try {
-    const result = sceneAtlasStore.signIn({
-      email: readString(formData, "email"),
-      avatar: readString(formData, "avatar") || undefined,
-      provider: readString(formData, "provider") || "authjs"
-    });
-
-    const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE, result.session.token, {
-      path: "/",
-      sameSite: "lax",
-      httpOnly: true
-    });
-
-    redirect(redirectTo(formData, "/search"));
-  } catch (error) {
-    redirectWithError("/sign-in", error);
-  }
-}
-
-export async function signOutAction(formData: FormData) {
-  const sessionToken = await getSessionToken();
-  if (sessionToken) {
-    sceneAtlasStore.signOut(sessionToken);
-  }
-
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, "", {
-    path: "/",
-    sameSite: "lax",
-    httpOnly: true,
-    expires: new Date(0)
+async function jsonRequest<T>(path: string, method: "POST" | "PUT", body?: unknown) {
+  return sceneAtlasApiRequest<T>(path, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
   });
-  redirect(redirectTo(formData, "/"));
 }
 
 export async function toggleWatchlistAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/watchlist"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/watchlist"));
 
   const movieId = readString(formData, "movieId");
+  if (!movieId) {
+    redirectWithError(redirectTo(formData, "/watchlist"), new Error("Movie id is required."));
+  }
+
+  const action = readString(formData, "watchlistAction");
   const returnTo = redirectTo(formData, `/movies/${movieId}`);
 
   try {
-    if (sceneAtlasStore.isOnWatchlist(userId, movieId)) {
-      sceneAtlasStore.removeFromWatchlist(userId, movieId);
+    if (action === "remove") {
+      await sceneAtlasApiRequest(`/watchlist/${encodeURIComponent(movieId)}`, { method: "DELETE" });
     } else {
-      sceneAtlasStore.addToWatchlist(userId, movieId);
+      await sceneAtlasApiRequest(`/watchlist/${encodeURIComponent(movieId)}`, { method: "POST" });
     }
   } catch (error) {
     redirectWithError(returnTo, error);
@@ -110,17 +74,21 @@ export async function toggleWatchlistAction(formData: FormData) {
 }
 
 export async function upsertRatingAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/search"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/search"));
 
   const movieId = readString(formData, "movieId");
+  if (!movieId) {
+    redirectWithError(redirectTo(formData, "/search"), new Error("Movie id is required."));
+  }
+
   const value = Number(readString(formData, "value"));
   const returnTo = redirectTo(formData, `/movies/${movieId}`);
+  if (!Number.isFinite(value) || value < 1 || value > 5) {
+    redirectWithError(returnTo, new Error("Rating must be between 1 and 5."));
+  }
 
   try {
-    sceneAtlasStore.upsertRating(userId, movieId, value);
+    await jsonRequest(`/ratings/${encodeURIComponent(movieId)}`, "PUT", { value });
   } catch (error) {
     redirectWithError(returnTo, error);
   }
@@ -129,16 +97,17 @@ export async function upsertRatingAction(formData: FormData) {
 }
 
 export async function upsertReviewAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/search"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/search"));
 
   const movieId = readString(formData, "movieId");
+  if (!movieId) {
+    redirectWithError(redirectTo(formData, "/search"), new Error("Movie id is required."));
+  }
+
   const returnTo = redirectTo(formData, `/movies/${movieId}`);
 
   try {
-    sceneAtlasStore.upsertReview(userId, movieId, {
+    await jsonRequest(`/reviews/${encodeURIComponent(movieId)}`, "POST", {
       title: readString(formData, "title"),
       body: readString(formData, "body"),
       spoilerTag: readBoolean(formData, "spoilerTag")
@@ -151,36 +120,42 @@ export async function upsertReviewAction(formData: FormData) {
 }
 
 export async function createCollectionAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/collections"))}`);
+  await requireSignedIn(redirectTo(formData, "/collections"));
+
+  const returnTo = redirectTo(formData, "/collections");
+  const name = readString(formData, "name");
+  if (!name) {
+    redirectWithError(returnTo, new Error("Collection name is required."));
   }
 
   try {
-    sceneAtlasStore.createCollection(userId, {
-      name: readString(formData, "name"),
+    await jsonRequest("/collections", "POST", {
+      name,
       description: readString(formData, "description") || undefined,
       visibility: readString(formData, "visibility") === "shared" ? "shared" : "private"
     });
   } catch (error) {
-    redirectWithError(redirectTo(formData, "/collections"), error);
+    redirectWithError(returnTo, error);
   }
 
-  redirect(redirectTo(formData, "/collections"));
+  redirect(returnTo);
 }
 
 export async function addMovieToCollectionAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/collections"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/collections"));
 
   const collectionId = readString(formData, "collectionId");
   const movieId = readString(formData, "movieId");
   const returnTo = redirectTo(formData, "/collections");
 
+  if (!collectionId || !movieId) {
+    redirectWithError(returnTo, new Error("Collection and movie ids are required."));
+  }
+
   try {
-    sceneAtlasStore.addMovieToCollection(userId, collectionId, movieId);
+    await sceneAtlasApiRequest(`/collections/${encodeURIComponent(collectionId)}/movies/${encodeURIComponent(movieId)}`, {
+      method: "POST"
+    });
   } catch (error) {
     redirectWithError(returnTo, error);
   }
@@ -189,17 +164,20 @@ export async function addMovieToCollectionAction(formData: FormData) {
 }
 
 export async function removeMovieFromCollectionAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/collections"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/collections"));
 
   const collectionId = readString(formData, "collectionId");
   const movieId = readString(formData, "movieId");
   const returnTo = redirectTo(formData, "/collections");
 
+  if (!collectionId || !movieId) {
+    redirectWithError(returnTo, new Error("Collection and movie ids are required."));
+  }
+
   try {
-    sceneAtlasStore.removeMovieFromCollection(userId, collectionId, movieId);
+    await sceneAtlasApiRequest(`/collections/${encodeURIComponent(collectionId)}/movies/${encodeURIComponent(movieId)}`, {
+      method: "DELETE"
+    });
   } catch (error) {
     redirectWithError(returnTo, error);
   }
@@ -208,47 +186,45 @@ export async function removeMovieFromCollectionAction(formData: FormData) {
 }
 
 export async function upgradeAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/billing"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/billing"));
+
+  const returnTo = redirectTo(formData, "/billing");
 
   try {
-    sceneAtlasStore.promoteToPremium(userId, "web");
+    await sceneAtlasApiRequest("/subscriptions/upgrade", { method: "POST" });
   } catch (error) {
-    redirectWithError(redirectTo(formData, "/billing"), error);
+    redirectWithError(returnTo, error);
   }
 
-  redirect(redirectTo(formData, "/billing"));
+  redirect(returnTo);
 }
 
 export async function downgradeAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/billing"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/billing"));
+
+  const returnTo = redirectTo(formData, "/billing");
 
   try {
-    sceneAtlasStore.demoteToFree(userId, "web");
+    await sceneAtlasApiRequest("/subscriptions/downgrade", { method: "POST" });
   } catch (error) {
-    redirectWithError(redirectTo(formData, "/billing"), error);
+    redirectWithError(returnTo, error);
   }
 
-  redirect(redirectTo(formData, "/billing"));
+  redirect(returnTo);
 }
 
 export async function exportNotesAction(formData: FormData) {
-  const userId = await getSessionUserId();
-  if (userId === "anonymous") {
-    redirect(`/sign-in?returnTo=${encodeURIComponent(redirectTo(formData, "/billing"))}`);
-  }
+  await requireSignedIn(redirectTo(formData, "/billing"));
 
   const movieId = readString(formData, "movieId") || undefined;
   const format = readString(formData, "format") === "markdown" ? "markdown" : "json";
   const returnTo = redirectTo(formData, movieId ? `/movies/${movieId}` : "/billing");
 
   try {
-    sceneAtlasStore.createExportJob(userId, movieId, format);
+    await jsonRequest("/exports", "POST", {
+      movieId,
+      format
+    });
   } catch (error) {
     redirectWithError(returnTo, error);
   }

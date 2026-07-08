@@ -26,8 +26,21 @@ export class AuthController {
   }
 
   @Get("me")
-  me(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+  me(
+    @Headers("x-sceneatlas-session") sessionToken = "",
+    @Headers("x-sceneatlas-user-id") userId = "anonymous",
+    @Headers("x-sceneatlas-user-name") displayName = "",
+    @Headers("x-sceneatlas-user-email") email = "",
+    @Headers("x-sceneatlas-user-avatar") avatar = "",
+    @Headers("x-sceneatlas-auth-provider") provider = "clerk"
+  ) {
     const resolved = resolveSceneAtlasUserId(sessionToken, userId);
-    return this.authService.me(resolved);
+    return this.authService.me(resolved, {
+      sessionToken,
+      displayName,
+      email,
+      avatar,
+      provider
+    });
   }
 }

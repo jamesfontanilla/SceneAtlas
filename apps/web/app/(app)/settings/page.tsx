@@ -17,9 +17,9 @@ export default async function SettingsPage() {
       <div className="settings-grid">
         <Card className="settings-card">
           <Badge className="chip--accent">Auth</Badge>
-          <h3 className="settings-card__title">{account?.authProvider ?? "Auth.js or Clerk"}</h3>
+          <h3 className="settings-card__title">{account?.authProvider ?? "Clerk"}</h3>
           <p className="settings-card__body">
-            The auth layer is provider-agnostic so the same product flow can run on either auth stack.
+            SceneAtlas now uses Clerk for sign-in while the API keeps saved state synchronized through the database.
           </p>
         </Card>
         <Card className="settings-card">
@@ -54,9 +54,9 @@ export default async function SettingsPage() {
         </Card>
         <Card className="analysis-card">
           <Badge>Runtime</Badge>
-          <h3 className="analysis-card__title">Local store-backed persistence</h3>
+          <h3 className="analysis-card__title">API-backed persistence</h3>
           <p className="analysis-card__body">
-            The demo backend writes state to a local store during this phase, keeping the feature flow testable without hiding the intended service boundaries.
+            The web tier stays stateless here, while the API owns saved state and can persist it through the database provider behind Render and Neon.
           </p>
         </Card>
       </div>

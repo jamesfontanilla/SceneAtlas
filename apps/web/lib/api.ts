@@ -1,7 +1,28 @@
-import { getSceneAtlasMovie, sceneAtlasCollections, sceneAtlasMovies, sceneAtlasReviews, searchSceneAtlasMovies } from "@sceneatlas/shared";
-import type { AccountSnapshot, CollectionPreview, MovieAnalysis, MovieBrief, MovieDetail, MovieSearchFilters, ReviewPreview, UsageSnapshot } from "@sceneatlas/shared";
-import { sceneAtlasStore, type ExportFormat } from "@sceneatlas/db";
-import { getCurrentAccount, getSessionToken, getSessionUserId } from "./session";
+import {
+  getSceneAtlasMovie,
+  sceneAtlasCollections,
+  sceneAtlasMovies,
+  sceneAtlasReviews,
+  sceneAtlasUsage,
+  searchSceneAtlasMovies
+} from "@sceneatlas/shared";
+import type {
+  AccountSnapshot,
+  CollectionPreview,
+  MovieAnalysis,
+  MovieBrief,
+  MovieDetail,
+  MovieSearchFilters,
+  ReviewPreview,
+  UsageSnapshot
+} from "@sceneatlas/shared";
+import { auth, currentUser } from "@clerk/nextjs/server";
+
+type ExportFormat = "json" | "markdown";
+
+interface ApiError extends Error {
+  status?: number;
+}
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 
@@ -14,51 +35,6 @@ export interface ExportJobSnapshot {
   status: "queued" | "ready" | "failed";
   createdAt: string;
   updatedAt: string;
-}
-
-async function getRequestHeaders() {
-  const sessionToken = await getSessionToken();
-  const userId = await getSessionUserId();
-
-  return {
-    "x-sceneatlas-client": "web",
-    "x-sceneatlas-session": sessionToken ?? "",
-    "x-sceneatlas-user-id": userId
-  };
-}
-
-async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!apiBase) {
-    throw new Error("API base URL is not configured.");
-  }
-
-  const response = await fetch(`${apiBase}${path}`, {
-    cache: "no-store",
-    headers: {
-      ...(await getRequestHeaders()),
-      ...(init.headers as Record<string, string> | undefined)
-    },
-    ...init
-  });
-
-  if (!response.ok) {
-    throw new Error(`SceneAtlas API request failed for ${path}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-async function requestJsonOrFallback<T>(path: string, fallback: () => T | Promise<T>, init: RequestInit = {}) {
-  if (!apiBase) {
-    return fallback();
-  }
-
-  try {
-    return await requestJson<T>(path, init);
-  } catch (error) {
-    console.warn(`SceneAtlas API request failed for ${path}; using local fallback.`);
-    return fallback();
-  }
 }
 
 function movieToBrief(movie: MovieDetail): MovieBrief {
@@ -88,209 +64,219 @@ function normalizeFilters(filters: MovieSearchFilters = {}) {
   };
 }
 
-export async function fetchMovies(query: string, filters: MovieSearchFilters = {}): Promise<MovieBrief[]> {
-  const normalizedFilters = normalizeFilters(filters);
-
-  if (apiBase) {
-    const params = new URLSearchParams();
-    params.set("query", query);
-    if (normalizedFilters.year) {
-      params.set("year", String(normalizedFilters.year));
-    }
-    if (normalizedFilters.genre) {
-      params.set("genre", normalizedFilters.genre);
-    }
-    if (normalizedFilters.language) {
-      params.set("language", normalizedFilters.language);
-    }
-    return requestJsonOrFallback<MovieBrief[]>(`/movies?${params.toString()}`, async () => {
-      const userId = await getSessionUserId();
-      sceneAtlasStore.consumeUsage(userId, "SEARCH");
-      return searchSceneAtlasMovies(query, normalizedFilters).map(movieToBrief);
-    });
+function redactAnalysis(movie: MovieAnalysis, spoilers: boolean): MovieAnalysis {
+  if (spoilers) {
+    return movie;
   }
 
-  const userId = await getSessionUserId();
-  sceneAtlasStore.consumeUsage(userId, "SEARCH");
-  return searchSceneAtlasMovies(query, normalizedFilters).map(movieToBrief);
+  return {
+    ...movie,
+    ending: "Enable spoilers to read the ending explanation."
+  };
 }
 
-export async function fetchMovie(slug: string): Promise<MovieDetail | null> {
-  if (apiBase) {
-    return requestJsonOrFallback<MovieDetail | null>(`/movies/${encodeURIComponent(slug)}`, async () => getSceneAtlasMovie(slug));
-  }
-
-  return getSceneAtlasMovie(slug);
-}
-
-export async function fetchAnalysis(movieId: string, spoilers: boolean): Promise<MovieAnalysis> {
-  if (apiBase) {
-    return requestJsonOrFallback<MovieAnalysis>(
-      `/analysis/${encodeURIComponent(movieId)}?spoilers=${spoilers ? "1" : "0"}`,
-      async () => {
-        const userId = await getSessionUserId();
-        const cached = sceneAtlasStore.getCachedAnalysis(movieId, spoilers);
-        if (cached) {
-          return cached.result;
-        }
-
-        sceneAtlasStore.consumeUsage(userId, "ANALYSIS");
-        const movie = getSceneAtlasMovie(movieId);
-        if (!movie) {
-          throw new Error("Movie not found.");
-        }
-
-        const analysis = spoilers
-          ? movie.analysis
-          : {
-              ...movie.analysis,
-              ending: "Enable spoilers to read the ending explanation."
-            };
-        sceneAtlasStore.cacheAnalysis(movieId, spoilers, analysis, "web-local");
-        return analysis;
-      }
-    );
-  }
-
-  const userId = await getSessionUserId();
-  const cached = sceneAtlasStore.getCachedAnalysis(movieId, spoilers);
-  if (cached) {
-    return cached.result;
-  }
-
-  sceneAtlasStore.consumeUsage(userId, "ANALYSIS");
+function fallbackAnalysis(movieId: string, spoilers: boolean): MovieAnalysis {
   const movie = getSceneAtlasMovie(movieId);
   if (!movie) {
     throw new Error("Movie not found.");
   }
 
-  const analysis = spoilers
-    ? movie.analysis
-    : {
-        ...movie.analysis,
-        ending: "Enable spoilers to read the ending explanation."
-      };
-  sceneAtlasStore.cacheAnalysis(movieId, spoilers, analysis, "web-local");
-  return analysis;
+  return redactAnalysis(movie.analysis, spoilers);
+}
+
+function createApiError(message: string, status?: number) {
+  const error = new Error(message) as ApiError;
+  error.status = status;
+  return error;
+}
+
+function hasStatus(error: unknown): error is ApiError {
+  return typeof error === "object" && error !== null && "status" in error;
+}
+
+function buildApiUrl(path: string) {
+  if (!apiBase) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
+  }
+
+  return `${apiBase}${path}`;
+}
+
+async function getRequestHeaders() {
+  const { userId, sessionId } = await auth();
+  const user = userId ? await currentUser() : null;
+  const primaryEmail = user?.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? "";
+  const displayName =
+    user?.fullName?.trim() ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+    user?.username?.trim() ||
+    primaryEmail ||
+    "";
+
+  return {
+    "x-sceneatlas-client": "web",
+    "x-sceneatlas-session": sessionId ?? "",
+    "x-sceneatlas-user-id": userId ?? "anonymous",
+    "x-sceneatlas-user-name": displayName,
+    "x-sceneatlas-user-email": primaryEmail,
+    "x-sceneatlas-user-avatar": user?.imageUrl ?? "",
+    "x-sceneatlas-auth-provider": userId ? "clerk" : "anonymous"
+  };
+}
+
+function mergeHeaders(initHeaders: HeadersInit | undefined, requestHeaders: Record<string, string>) {
+  const headers = new Headers(initHeaders);
+  for (const [key, value] of Object.entries(requestHeaders)) {
+    headers.set(key, value);
+  }
+
+  return headers;
+}
+
+async function readErrorMessage(response: Response, path: string) {
+  const text = await response.text();
+  if (!text) {
+    return `SceneAtlas API request failed for ${path}.`;
+  }
+
+  try {
+    const parsed = JSON.parse(text) as { message?: unknown };
+    if (typeof parsed.message === "string") {
+      return parsed.message;
+    }
+
+    if (Array.isArray(parsed.message)) {
+      return parsed.message.map(String).join(", ");
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
+}
+
+async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = mergeHeaders(init.headers, await getRequestHeaders());
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    cache: "no-store",
+    headers
+  });
+
+  if (!response.ok) {
+    throw createApiError(await readErrorMessage(response, path), response.status);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return (await response.json()) as T;
+  }
+
+  return (await response.text()) as T;
+}
+
+export async function sceneAtlasApiRequest<T>(path: string, init: RequestInit = {}) {
+  return requestJson<T>(path, init);
+}
+
+async function requestJsonOrFallback<T>(path: string, fallback: () => T | Promise<T>, init: RequestInit = {}) {
+  if (!apiBase) {
+    return fallback();
+  }
+
+  try {
+    return await requestJson<T>(path, init);
+  } catch (error) {
+    if (error instanceof SyntaxError || hasStatus(error)) {
+      throw error;
+    }
+
+    console.warn(`SceneAtlas API request failed for ${path}; using shared fallback data.`);
+    return fallback();
+  }
+}
+
+export async function fetchMovies(query: string, filters: MovieSearchFilters = {}): Promise<MovieBrief[]> {
+  const normalizedFilters = normalizeFilters(filters);
+  const params = new URLSearchParams();
+  params.set("query", query);
+
+  if (normalizedFilters.year) {
+    params.set("year", String(normalizedFilters.year));
+  }
+
+  if (normalizedFilters.genre) {
+    params.set("genre", normalizedFilters.genre);
+  }
+
+  if (normalizedFilters.language) {
+    params.set("language", normalizedFilters.language);
+  }
+
+  return requestJsonOrFallback<MovieBrief[]>(`/movies?${params.toString()}`, async () =>
+    searchSceneAtlasMovies(query, normalizedFilters).map(movieToBrief)
+  );
+}
+
+export async function fetchMovie(slug: string): Promise<MovieDetail | null> {
+  return requestJsonOrFallback<MovieDetail | null>(`/movies/${encodeURIComponent(slug)}`, async () => getSceneAtlasMovie(slug));
+}
+
+export async function fetchAnalysis(movieId: string, spoilers: boolean): Promise<MovieAnalysis> {
+  return requestJsonOrFallback<MovieAnalysis>(
+    `/analysis/${encodeURIComponent(movieId)}?spoilers=${spoilers ? "1" : "0"}`,
+    async () => fallbackAnalysis(movieId, spoilers)
+  );
 }
 
 export async function fetchUsage(): Promise<UsageSnapshot> {
-  if (apiBase) {
-    return requestJsonOrFallback<UsageSnapshot>(`/usage/summary`, async () => {
-      const account = await getCurrentAccount();
-      if (account) {
-        return account.usage;
-      }
-
-      return sceneAtlasStore.getUsageSnapshot(await getSessionUserId());
-    });
-  }
-
-  const account = await getCurrentAccount();
-  if (account) {
-    return account.usage;
-  }
-
-  return sceneAtlasStore.getUsageSnapshot(await getSessionUserId());
+  return requestJsonOrFallback<UsageSnapshot>(`/usage/summary`, async () => sceneAtlasUsage);
 }
 
 export async function fetchAccount(): Promise<AccountSnapshot | null> {
-  if (apiBase) {
-    return requestJsonOrFallback<AccountSnapshot | null>(`/auth/me`, async () => getCurrentAccount());
-  }
-
-  return getCurrentAccount();
+  return requestJsonOrFallback<AccountSnapshot | null>(`/auth/me`, async () => null);
 }
 
 export async function fetchCollections(): Promise<CollectionPreview[]> {
-  if (apiBase) {
-    return requestJsonOrFallback<CollectionPreview[]>(`/collections`, async () => {
-      const account = await getCurrentAccount();
-      return account ? sceneAtlasStore.listCollections(account.id) : sceneAtlasCollections;
-    });
-  }
-
-  const account = await getCurrentAccount();
-  return account ? sceneAtlasStore.listCollections(account.id) : sceneAtlasCollections;
+  return requestJsonOrFallback<CollectionPreview[]>(`/collections`, async () => sceneAtlasCollections);
 }
 
 export async function fetchWatchlist(): Promise<MovieBrief[]> {
-  const fallback = async () => {
-    const account = await getCurrentAccount();
-    return account ? sceneAtlasStore.listWatchlist(account.id) : sceneAtlasMovies.slice(0, 3).map(movieToBrief);
-  };
-
-  if (apiBase) {
-    return requestJsonOrFallback<MovieBrief[]>(`/watchlist`, fallback);
-  }
-
-  return fallback();
+  return requestJsonOrFallback<MovieBrief[]>(`/watchlist`, async () => sceneAtlasMovies.slice(0, 3).map(movieToBrief));
 }
 
 export async function fetchReviews(movieId?: string): Promise<ReviewPreview[]> {
-  if (apiBase) {
-    const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
-    return requestJsonOrFallback<ReviewPreview[]>(`/reviews${params}`, async () => {
-      const account = await getCurrentAccount();
-      if (!account) {
-        return sceneAtlasReviews;
-      }
-
-      return sceneAtlasStore.listReviews(movieId);
-    });
-  }
-
-  const account = await getCurrentAccount();
-  if (!account) {
-    return sceneAtlasReviews;
-  }
-
-  return sceneAtlasStore.listReviews(movieId);
+  const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
+  return requestJsonOrFallback<ReviewPreview[]>(`/reviews${params}`, async () => sceneAtlasReviews);
 }
 
-export async function fetchRatingSummary(movieId: string): Promise<{ movieId: string; averageRating: number | null; ratingCount: number; userRating: number | null }> {
-  const account = await getCurrentAccount();
-  if (apiBase) {
-    return requestJsonOrFallback<{ movieId: string; averageRating: number | null; ratingCount: number; userRating: number | null }>(
-      `/ratings/${encodeURIComponent(movieId)}`,
-      async () => {
-        const state = sceneAtlasStore.readState();
-        const ratings = state.ratings.filter((item) => item.movieId === movieId);
-        const averageRating = sceneAtlasStore.getAverageRating(movieId);
-        const userRating = account ? sceneAtlasStore.getUserRating(account.id, movieId)?.value ?? null : null;
-        return {
-          movieId,
-          averageRating,
-          ratingCount: ratings.length,
-          userRating
-        };
-      }
-    );
-  }
-
-  const state = sceneAtlasStore.readState();
-  const ratings = state.ratings.filter((item) => item.movieId === movieId);
-  const averageRating = sceneAtlasStore.getAverageRating(movieId);
-  const userRating = account ? sceneAtlasStore.getUserRating(account.id, movieId)?.value ?? null : null;
-  return {
-    movieId,
-    averageRating,
-    ratingCount: ratings.length,
-    userRating
-  };
+export async function fetchRatingSummary(movieId: string): Promise<{
+  movieId: string;
+  averageRating: number | null;
+  ratingCount: number;
+  userRating: number | null;
+}> {
+  return requestJsonOrFallback(
+    `/ratings/${encodeURIComponent(movieId)}`,
+    async () => {
+      const movie = getSceneAtlasMovie(movieId);
+      return {
+        movieId,
+        averageRating: movie?.rating ?? null,
+        ratingCount: 0,
+        userRating: null
+      };
+    }
+  );
 }
 
 export async function fetchLatestExport(movieId?: string): Promise<ExportJobSnapshot | null> {
-  if (apiBase) {
-    const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
-    return requestJsonOrFallback<ExportJobSnapshot | null>(`/exports/latest${params}`, async () => {
-      const account = await getCurrentAccount();
-      return account ? sceneAtlasStore.getLatestExport(account.id, movieId) : null;
-    });
-  }
-
-  const account = await getCurrentAccount();
-  return account ? sceneAtlasStore.getLatestExport(account.id, movieId) : null;
+  const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
+  return requestJsonOrFallback<ExportJobSnapshot | null>(`/exports/latest${params}`, async () => null);
 }
 
 export function getFeaturedMovies() {

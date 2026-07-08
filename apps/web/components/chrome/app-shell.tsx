@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { appNavigation, sceneAtlasBrand } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { AccountSnapshot, UsageSnapshot } from "@sceneatlas/shared";
-import { signOutAction } from "@/lib/actions";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -51,21 +51,22 @@ export function AppShell({ children, usage, account }: AppShellProps) {
                 <Badge>{account.collectionCount} collections</Badge>
                 <Badge>{account.reviewCount} reviews</Badge>
               </div>
-              <form action={signOutAction} className="sidebar-account__form">
-                <input type="hidden" name="returnTo" value="/" />
-                <Button type="submit" variant="secondary" className="button--small">
-                  Sign out
-                </Button>
-              </form>
             </>
           ) : (
             <>
               <p className="sidebar-stat__label">Guest mode</p>
               <h3 className="analysis-card__title">Sign in to keep your lists and reviews in sync.</h3>
               <p className="analysis-card__body">You can still search and browse, but saved state becomes personal once you sign in.</p>
-              <Button href="/sign-in" variant="secondary" className="button--small">
-                Sign in
-              </Button>
+              <div className="auth-form__actions">
+                <SignInButton mode="modal">
+                  <Button variant="secondary" className="button--small">
+                    Sign in
+                  </Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button className="button--small">Create account</Button>
+                </SignUpButton>
+              </div>
             </>
           )}
         </div>

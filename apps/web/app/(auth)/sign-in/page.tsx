@@ -1,26 +1,24 @@
-import { signInAction } from "@/lib/actions";
+import { SignIn } from "@clerk/nextjs";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
 interface SignInPageProps {
-  searchParams: Promise<{ returnTo?: string; error?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
-  const returnTo = params.returnTo ?? "/search";
 
   return (
     <Card className="auth-card">
       <div className="auth-grid">
         <div>
-          <Badge className="chip--accent">Auth ready</Badge>
+          <Badge className="chip--accent">Welcome back</Badge>
           <h1 className="display-title section-title" style={{ marginTop: 14 }}>
             Sign in to SceneAtlas
           </h1>
           <p className="auth-copy">
-            The authentication layer is provider-agnostic, so the same product flow can run on Auth.js or Clerk.
+            Use Clerk to access your watchlist, collections, ratings, and reviews across devices.
           </p>
           {params.error ? (
             <p className="auth-copy auth-copy--error" style={{ color: "var(--danger)" }}>
@@ -29,30 +27,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           ) : null}
         </div>
 
-        <form className="auth-form" action={signInAction}>
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <label className="field">
-            <span className="field__label">Email</span>
-            <input className="field__input" name="email" type="email" placeholder="you@example.com" />
-          </label>
-          <label className="field">
-            <span className="field__label">Avatar URL</span>
-            <input className="field__input" name="avatar" placeholder="https://example.com/avatar.png" />
-          </label>
-          <label className="field">
-            <span className="field__label">Provider</span>
-            <select className="field__select" defaultValue="authjs" name="provider">
-              <option value="authjs">Auth.js</option>
-              <option value="clerk">Clerk</option>
-            </select>
-          </label>
-          <div className="auth-form__actions">
-            <Button type="submit">Continue</Button>
-            <Button href="/sign-up" variant="secondary">
-              Create account
-            </Button>
-          </div>
-        </form>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <SignIn />
+        </div>
       </div>
     </Card>
   );

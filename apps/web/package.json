@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/nextjs": "latest",
     "@sceneatlas/shared": "workspace:*",
     "next": "latest",
     "react": "latest",

@@ -15,6 +15,14 @@ export interface AuthResult {
   usage: UsageSnapshot;
 }
 
+export interface AccountSyncInput {
+  sessionToken?: string;
+  displayName?: string;
+  email?: string;
+  avatar?: string;
+  provider?: string;
+}
+
 @Injectable()
 export class AuthService {
   signUp(input: AuthInput): AuthResult {
@@ -45,8 +53,33 @@ export class AuthService {
     };
   }
 
-  me(userId: string) {
-    return sceneAtlasStore.getAccount(userId);
+  me(userId: string, input: AccountSyncInput = {}) {
+    const account = sceneAtlasStore.getAccount(userId);
+    if (account) {
+      if (input.sessionToken) {
+        sceneAtlasStore.createSession(account.id, input.sessionToken);
+      }
+
+      return account;
+    }
+
+    if (!input.email) {
+      return null;
+    }
+
+    const user = sceneAtlasStore.upsertUser({
+      id: userId,
+      name: input.displayName?.trim() || input.email,
+      email: input.email,
+      avatar: input.avatar,
+      provider: input.provider ?? "clerk"
+    });
+
+    if (input.sessionToken) {
+      sceneAtlasStore.createSession(user.id, input.sessionToken);
+    }
+
+    return sceneAtlasStore.getAccount(user.id);
   }
 
   signOut(sessionToken: string) {

@@ -164,6 +164,7 @@ export interface SceneAtlasState {
 }
 
 export interface SignUpInput {
+  id?: string;
   name: string;
   email: string;
   avatar?: string;
@@ -372,6 +373,76 @@ function currentBucket(state: SceneAtlasState, userId: string) {
 
 function resolveUser(state: SceneAtlasState, userId: string) {
   return state.users.find((item) => item.id === userId) ?? null;
+}
+
+function rekeyUser(state: SceneAtlasState, fromUserId: string, toUserId: string) {
+  if (fromUserId === toUserId) {
+    return resolveUser(state, fromUserId);
+  }
+
+  const user = resolveUser(state, fromUserId);
+  if (!user) {
+    return null;
+  }
+
+  const conflictingUser = resolveUser(state, toUserId);
+  if (conflictingUser && conflictingUser.id !== fromUserId) {
+    return conflictingUser;
+  }
+
+  const now = nowIso();
+  user.id = toUserId;
+  user.updatedAt = now;
+
+  for (const bucket of state.usageBuckets) {
+    if (bucket.userId === fromUserId) {
+      bucket.userId = toUserId;
+    }
+  }
+
+  for (const session of state.sessions) {
+    if (session.userId === fromUserId) {
+      session.userId = toUserId;
+    }
+  }
+
+  for (const item of state.watchlistItems) {
+    if (item.userId === fromUserId) {
+      item.userId = toUserId;
+    }
+  }
+
+  for (const collection of state.collections) {
+    if (collection.userId === fromUserId) {
+      collection.userId = toUserId;
+    }
+  }
+
+  for (const rating of state.ratings) {
+    if (rating.userId === fromUserId) {
+      rating.userId = toUserId;
+    }
+  }
+
+  for (const review of state.reviews) {
+    if (review.userId === fromUserId) {
+      review.userId = toUserId;
+    }
+  }
+
+  for (const exportJob of state.exportJobs) {
+    if (exportJob.userId === fromUserId) {
+      exportJob.userId = toUserId;
+    }
+  }
+
+  for (const event of state.auditEvents) {
+    if (event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) && event.metadata.userId === fromUserId) {
+      event.metadata = { ...event.metadata, userId: toUserId };
+    }
+  }
+
+  return user;
 }
 
 function ensureMovie(movieId: string): MovieDetail | null {
@@ -588,10 +659,23 @@ export const sceneAtlasStore = {
       const email = normalizeEmail(input.email);
       const now = nowIso();
       const provider = input.provider ?? "authjs";
-      const existing = state.users.find((item) => item.email === email);
+      const targetId = input.id?.trim();
+      let existing = targetId ? state.users.find((item) => item.id === targetId) ?? null : null;
+
+      if (!existing) {
+        existing = state.users.find((item) => item.email === email) ?? null;
+      }
 
       if (existing) {
+        if (targetId && existing.id !== targetId) {
+          const rekeyed = rekeyUser(state, existing.id, targetId);
+          if (rekeyed) {
+            existing = rekeyed;
+          }
+        }
+
         existing.displayName = input.name || existing.displayName || defaultDisplayName(email);
+        existing.email = email;
         existing.avatar = input.avatar ?? existing.avatar;
         existing.authProvider = provider;
         existing.subscriptionTier = input.subscriptionTier ?? existing.subscriptionTier;
@@ -604,7 +688,7 @@ export const sceneAtlasStore = {
       }
 
       const user: SceneAtlasUserRecord = {
-        id: randomUUID(),
+        id: targetId || randomUUID(),
         displayName: input.name.trim() || defaultDisplayName(email),
         email,
         avatar: input.avatar,
@@ -620,11 +704,18 @@ export const sceneAtlasStore = {
     });
   },
 
-  createSession(userId: string) {
+  createSession(userId: string, token: string = randomUUID()) {
     return mutateState((state) => {
       const now = nowIso();
+      const existing = state.sessions.find((item) => item.token === token);
+      if (existing) {
+        existing.userId = userId;
+        existing.lastSeenAt = now;
+        return existing;
+      }
+
       const session: SceneAtlasSessionRecord = {
-        token: randomUUID(),
+        token,
         userId,
         createdAt: now,
         lastSeenAt: now

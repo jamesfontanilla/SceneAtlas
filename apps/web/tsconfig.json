@@ -8,9 +8,7 @@
     "paths": {
       "@/*": ["./*"],
       "@sceneatlas/shared": ["../../packages/shared/src/index.ts"],
-      "@sceneatlas/shared/*": ["../../packages/shared/src/*"],
-      "@sceneatlas/db": ["../../packages/db/src/index.ts"],
-      "@sceneatlas/db/*": ["../../packages/db/src/*"]
+      "@sceneatlas/shared/*": ["../../packages/shared/src/*"]
     },
     "plugins": [
       {
@@ -23,8 +21,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "../../packages/shared/src/**/*.ts",
-    "../../packages/db/src/**/*.ts"
+    "../../packages/shared/src/**/*.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
