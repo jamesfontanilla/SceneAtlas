@@ -48,6 +48,19 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
   return response.json() as Promise<T>;
 }
 
+async function requestJsonOrFallback<T>(path: string, fallback: () => T | Promise<T>, init: RequestInit = {}) {
+  if (!apiBase) {
+    return fallback();
+  }
+
+  try {
+    return await requestJson<T>(path, init);
+  } catch (error) {
+    console.warn(`SceneAtlas API request failed for ${path}; using local fallback.`);
+    return fallback();
+  }
+}
+
 function movieToBrief(movie: MovieDetail): MovieBrief {
   return {
     slug: movie.slug,
@@ -90,7 +103,11 @@ export async function fetchMovies(query: string, filters: MovieSearchFilters = {
     if (normalizedFilters.language) {
       params.set("language", normalizedFilters.language);
     }
-    return requestJson<MovieBrief[]>(`/movies?${params.toString()}`);
+    return requestJsonOrFallback<MovieBrief[]>(`/movies?${params.toString()}`, async () => {
+      const userId = await getSessionUserId();
+      sceneAtlasStore.consumeUsage(userId, "SEARCH");
+      return searchSceneAtlasMovies(query, normalizedFilters).map(movieToBrief);
+    });
   }
 
   const userId = await getSessionUserId();
@@ -100,7 +117,7 @@ export async function fetchMovies(query: string, filters: MovieSearchFilters = {
 
 export async function fetchMovie(slug: string): Promise<MovieDetail | null> {
   if (apiBase) {
-    return requestJson<MovieDetail | null>(`/movies/${encodeURIComponent(slug)}`);
+    return requestJsonOrFallback<MovieDetail | null>(`/movies/${encodeURIComponent(slug)}`, async () => getSceneAtlasMovie(slug));
   }
 
   return getSceneAtlasMovie(slug);
@@ -108,7 +125,31 @@ export async function fetchMovie(slug: string): Promise<MovieDetail | null> {
 
 export async function fetchAnalysis(movieId: string, spoilers: boolean): Promise<MovieAnalysis> {
   if (apiBase) {
-    return requestJson<MovieAnalysis>(`/analysis/${encodeURIComponent(movieId)}?spoilers=${spoilers ? "1" : "0"}`);
+    return requestJsonOrFallback<MovieAnalysis>(
+      `/analysis/${encodeURIComponent(movieId)}?spoilers=${spoilers ? "1" : "0"}`,
+      async () => {
+        const userId = await getSessionUserId();
+        const cached = sceneAtlasStore.getCachedAnalysis(movieId, spoilers);
+        if (cached) {
+          return cached.result;
+        }
+
+        sceneAtlasStore.consumeUsage(userId, "ANALYSIS");
+        const movie = getSceneAtlasMovie(movieId);
+        if (!movie) {
+          throw new Error("Movie not found.");
+        }
+
+        const analysis = spoilers
+          ? movie.analysis
+          : {
+              ...movie.analysis,
+              ending: "Enable spoilers to read the ending explanation."
+            };
+        sceneAtlasStore.cacheAnalysis(movieId, spoilers, analysis, "web-local");
+        return analysis;
+      }
+    );
   }
 
   const userId = await getSessionUserId();
@@ -135,7 +176,14 @@ export async function fetchAnalysis(movieId: string, spoilers: boolean): Promise
 
 export async function fetchUsage(): Promise<UsageSnapshot> {
   if (apiBase) {
-    return requestJson<UsageSnapshot>(`/usage/summary`);
+    return requestJsonOrFallback<UsageSnapshot>(`/usage/summary`, async () => {
+      const account = await getCurrentAccount();
+      if (account) {
+        return account.usage;
+      }
+
+      return sceneAtlasStore.getUsageSnapshot(await getSessionUserId());
+    });
   }
 
   const account = await getCurrentAccount();
@@ -148,7 +196,7 @@ export async function fetchUsage(): Promise<UsageSnapshot> {
 
 export async function fetchAccount(): Promise<AccountSnapshot | null> {
   if (apiBase) {
-    return requestJson<AccountSnapshot | null>(`/auth/me`);
+    return requestJsonOrFallback<AccountSnapshot | null>(`/auth/me`, async () => getCurrentAccount());
   }
 
   return getCurrentAccount();
@@ -156,7 +204,10 @@ export async function fetchAccount(): Promise<AccountSnapshot | null> {
 
 export async function fetchCollections(): Promise<CollectionPreview[]> {
   if (apiBase) {
-    return requestJson<CollectionPreview[]>(`/collections`);
+    return requestJsonOrFallback<CollectionPreview[]>(`/collections`, async () => {
+      const account = await getCurrentAccount();
+      return account ? sceneAtlasStore.listCollections(account.id) : sceneAtlasCollections;
+    });
   }
 
   const account = await getCurrentAccount();
@@ -164,14 +215,29 @@ export async function fetchCollections(): Promise<CollectionPreview[]> {
 }
 
 export async function fetchWatchlist(): Promise<MovieBrief[]> {
-  const account = await getCurrentAccount();
-  return account ? sceneAtlasStore.listWatchlist(account.id) : sceneAtlasMovies.slice(0, 3).map(movieToBrief);
+  const fallback = async () => {
+    const account = await getCurrentAccount();
+    return account ? sceneAtlasStore.listWatchlist(account.id) : sceneAtlasMovies.slice(0, 3).map(movieToBrief);
+  };
+
+  if (apiBase) {
+    return requestJsonOrFallback<MovieBrief[]>(`/watchlist`, fallback);
+  }
+
+  return fallback();
 }
 
 export async function fetchReviews(movieId?: string): Promise<ReviewPreview[]> {
   if (apiBase) {
     const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
-    return requestJson<ReviewPreview[]>(`/reviews${params}`);
+    return requestJsonOrFallback<ReviewPreview[]>(`/reviews${params}`, async () => {
+      const account = await getCurrentAccount();
+      if (!account) {
+        return sceneAtlasReviews;
+      }
+
+      return sceneAtlasStore.listReviews(movieId);
+    });
   }
 
   const account = await getCurrentAccount();
@@ -185,7 +251,21 @@ export async function fetchReviews(movieId?: string): Promise<ReviewPreview[]> {
 export async function fetchRatingSummary(movieId: string): Promise<{ movieId: string; averageRating: number | null; ratingCount: number; userRating: number | null }> {
   const account = await getCurrentAccount();
   if (apiBase) {
-    return requestJson<{ movieId: string; averageRating: number | null; ratingCount: number; userRating: number | null }>(`/ratings/${encodeURIComponent(movieId)}`);
+    return requestJsonOrFallback<{ movieId: string; averageRating: number | null; ratingCount: number; userRating: number | null }>(
+      `/ratings/${encodeURIComponent(movieId)}`,
+      async () => {
+        const state = sceneAtlasStore.readState();
+        const ratings = state.ratings.filter((item) => item.movieId === movieId);
+        const averageRating = sceneAtlasStore.getAverageRating(movieId);
+        const userRating = account ? sceneAtlasStore.getUserRating(account.id, movieId)?.value ?? null : null;
+        return {
+          movieId,
+          averageRating,
+          ratingCount: ratings.length,
+          userRating
+        };
+      }
+    );
   }
 
   const state = sceneAtlasStore.readState();
@@ -203,7 +283,10 @@ export async function fetchRatingSummary(movieId: string): Promise<{ movieId: st
 export async function fetchLatestExport(movieId?: string): Promise<ExportJobSnapshot | null> {
   if (apiBase) {
     const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
-    return requestJson<ExportJobSnapshot | null>(`/exports/latest${params}`);
+    return requestJsonOrFallback<ExportJobSnapshot | null>(`/exports/latest${params}`, async () => {
+      const account = await getCurrentAccount();
+      return account ? sceneAtlasStore.getLatestExport(account.id, movieId) : null;
+    });
   }
 
   const account = await getCurrentAccount();
