@@ -191,11 +191,11 @@ async function requestJsonOrFallback<T>(path: string, fallback: () => T | Promis
   try {
     return await requestJson<T>(path, init);
   } catch (error) {
-    if (error instanceof SyntaxError || hasStatus(error)) {
-      throw error;
-    }
-
-    console.warn(`SceneAtlas API request failed for ${path}; using shared fallback data.`);
+    const status = hasStatus(error) ? error.status : undefined;
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `SceneAtlas API request failed for ${path}${status ? ` (${status})` : ""}; using shared fallback data. ${reason}`
+    );
     return fallback();
   }
 }
