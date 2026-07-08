@@ -1,0 +1,246 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum CollectionVisibility {
+  PRIVATE
+  SHARED
+}
+
+enum UsageEventKind {
+  SEARCH
+  ANALYSIS
+  EXPORT
+  REVIEW
+  COLLECTION_CREATE
+}
+
+model User {
+  id                String              @id @default(cuid())
+  email             String              @unique
+  name              String?
+  image             String?
+  clerkId           String?             @unique
+  authProvider      String              @default("authjs")
+  subscriptionTier  SubscriptionTier    @default(FREE)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  watchlistItems    WatchlistItem[]
+  collections       Collection[]
+  ratings           Rating[]
+  reviews           Review[]
+  usageEvents       UsageEvent[]
+  analysisRequests  AnalysisRequest[]
+  exportJobs        ExportJob[]
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier             SubscriptionTier
+  status           SubscriptionStatus
+  provider         String
+  providerRef      String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model Movie {
+  id               String            @id @default(cuid())
+  slug             String            @unique
+  title            String
+  releaseYear      Int
+  runtimeMinutes   Int
+  rating           Float?
+  tagline          String?
+  overview         String
+  posterUrl        String?
+  backdropUrl      String?
+  posterPalette    Json?
+  sourceSystem     String            @default("wikidata")
+  sourceKey        String?
+  commonsCategory  String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  analysisRequests AnalysisRequest[]
+  characters       Character[]
+  timelineEvents   TimelineEvent[]
+  watchlistItems   WatchlistItem[]
+  collectionItems  CollectionItem[]
+  ratings          Rating[]
+  reviews          Review[]
+  sourceSnapshots  MovieSourceSnapshot[]
+}
+
+model MovieSourceSnapshot {
+  id           String   @id @default(cuid())
+  movieId      String
+  movie        Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  source       String
+  payload      Json
+  fetchedAt    DateTime @default(now())
+
+  @@index([movieId, source])
+}
+
+model AnalysisRequest {
+  id             String          @id @default(cuid())
+  userId         String?
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  movieId        String
+  movie          Movie           @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  spoilerEnabled Boolean         @default(false)
+  status         String          @default("queued")
+  cacheKey       String          @unique
+  result         AnalysisResult?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([movieId, spoilerEnabled])
+}
+
+model AnalysisResult {
+  id                 String          @id @default(cuid())
+  requestId          String          @unique
+  request            AnalysisRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  summary            String
+  spoilerSummary     String
+  endingExplanation  String
+  spoilerEnding      String
+  timeline           Json
+  relationships      Json
+  similarMovies      Json
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Character {
+  id           String   @id @default(cuid())
+  movieId      String
+  movie        Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([movieId])
+}
+
+model TimelineEvent {
+  id           String   @id @default(cuid())
+  movieId      String
+  movie        Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  order        Int
+  label        String
+  title        String
+  description  String
+  characters   Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([movieId, order])
+}
+
+model WatchlistItem {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId      String
+  movie        Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, movieId])
+}
+
+model Collection {
+  id            String               @id @default(cuid())
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  visibility    CollectionVisibility @default(PRIVATE)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  items         CollectionItem[]
+}
+
+model CollectionItem {
+  id           String   @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  movieId      String
+  movie        Movie      @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([collectionId, movieId])
+}
+
+model Rating {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId    String
+  movie      Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  value      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, movieId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId    String
+  movie      Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  title      String
+  body       String
+  spoilerTag  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model UsageEvent {
+  id         String         @id @default(cuid())
+  userId     String?
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind       UsageEventKind
+  count      Int            @default(1)
+  note       String?
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([userId, kind, createdAt])
+}
+
+model ExportJob {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status     String   @default("queued")
+  format     String
+  payload    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

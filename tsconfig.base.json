@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@sceneatlas/shared": ["packages/shared/src/index.ts"],
+      "@sceneatlas/shared/*": ["packages/shared/src/*"],
+      "@sceneatlas/db": ["packages/db/src/index.ts"],
+      "@sceneatlas/db/*": ["packages/db/src/*"]
+    }
+  }
+}

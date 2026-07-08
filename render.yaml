@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sceneatlas-api
+    env: node
+    rootDir: apps/api
+    plan: free
+    buildCommand: pnpm install
+    startCommand: pnpm start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: MOVIE_DATA_PROVIDER
+        value: wikidata
+      - key: ANALYSIS_PROVIDER
+        value: mock
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WIKIDATA_API_URL
+        value: https://www.wikidata.org/w/api.php
+      - key: COMMONS_API_URL
+        value: https://commons.wikimedia.org/w/api.php

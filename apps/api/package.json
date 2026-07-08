@@ -1,0 +1,19 @@
+{
+  "name": "@sceneatlas/api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nestjs/common": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "@sceneatlas/db": "workspace:*",
+    "@sceneatlas/shared": "workspace:*",
+    "reflect-metadata": "latest",
+    "rxjs": "latest"
+  }
+}

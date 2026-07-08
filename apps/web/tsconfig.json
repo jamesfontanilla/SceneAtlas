@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "incremental": true,
+    "rootDir": "../..",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@sceneatlas/shared": ["../../packages/shared/src/index.ts"],
+      "@sceneatlas/shared/*": ["../../packages/shared/src/*"],
+      "@sceneatlas/db": ["../../packages/db/src/index.ts"],
+      "@sceneatlas/db/*": ["../../packages/db/src/*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "../../packages/shared/src/**/*.ts",
+    "../../packages/db/src/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "sceneatlas",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @sceneatlas/web --filter @sceneatlas/api dev",
+    "build": "pnpm --filter @sceneatlas/api typecheck && pnpm --filter @sceneatlas/web build",
+    "start:web": "pnpm --filter @sceneatlas/web start",
+    "start:api": "pnpm --filter @sceneatlas/api start",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @sceneatlas/db prisma:generate",
+    "db:studio": "pnpm --filter @sceneatlas/db prisma:studio"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
