@@ -9,7 +9,19 @@ Recommended environment variables:
 - `NEXT_PUBLIC_APP_NAME`
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_ADSENSE_CLIENT_ID`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`
+- `NEXT_PUBLIC_CLERK_SIGN_UP_URL`
+- `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`
+- `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`
 - `DATABASE_URL`
+
+Notes:
+
+- If Clerk env vars are missing, the edge middleware can fail with `MIDDLEWARE_INVOCATION_FAILED`.
+- AdSense verification needs the live site to serve the root layout with the sitewide AdSense snippet present.
 
 ## Render
 

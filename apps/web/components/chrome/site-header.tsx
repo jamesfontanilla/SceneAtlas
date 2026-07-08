@@ -1,13 +1,9 @@
 import Link from "next/link";
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { publicNavigation, sceneAtlasBrand } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { fetchAccount } from "@/lib/api";
 
-export async function SiteHeader() {
-  const account = await fetchAccount();
-
+export function SiteHeader() {
   return (
     <header className="site-header sceneatlas-container sceneatlas-container--wide">
       <Link className="brand" href="/">
@@ -24,26 +20,16 @@ export async function SiteHeader() {
             {item.label}
           </Link>
         ))}
-        {account ? (
-          <>
-            <Badge className={account.subscriptionTier === "PREMIUM" ? "chip--accent" : ""}>{account.displayName}</Badge>
-            <Button href="/search" variant="secondary" className="button--small">
-              Open app
-            </Button>
-            <UserButton />
-          </>
-        ) : (
-          <>
-            <SignInButton mode="modal">
-              <Button variant="secondary" className="button--small">
-                Sign in
-              </Button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <Button className="button--small">Create account</Button>
-            </SignUpButton>
-          </>
-        )}
+        <Badge className="chip--accent">Public access</Badge>
+        <Button href="/search" variant="secondary" className="button--small">
+          Open app
+        </Button>
+        <Button href="/sign-in" variant="secondary" className="button--small">
+          Sign in
+        </Button>
+        <Button href="/sign-up" className="button--small">
+          Create account
+        </Button>
       </nav>
     </header>
   );
