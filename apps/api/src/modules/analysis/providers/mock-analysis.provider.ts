@@ -7,8 +7,8 @@ function fallbackAnalysis(movieId: string): MovieAnalysis {
   return {
     summary: `SceneAtlas can still generate a structured analysis shell for ${movieId} using the public movie-data baseline.`,
     spoilerSummary: `SceneAtlas can still generate a structured analysis shell for ${movieId} using the public movie-data baseline.`,
-    ending: "Enable a richer data source or the OpenAI provider for a fuller ending explanation.",
-    spoilerEnding: "Enable a richer data source or the OpenAI provider for a fuller ending explanation.",
+    ending: "Enable a richer data source or the AI provider for a fuller ending explanation.",
+    spoilerEnding: "Enable a richer data source or the AI provider for a fuller ending explanation.",
     timeline: [],
     relationships: [],
     similar: []

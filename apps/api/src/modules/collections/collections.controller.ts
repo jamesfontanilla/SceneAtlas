@@ -7,8 +7,8 @@ export class CollectionsController {
   constructor(private readonly collectionsService: CollectionsService) {}
 
   @Get()
-  list(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
-    return this.collectionsService.list(resolveSceneAtlasUserId(sessionToken, userId));
+  async list(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+    return this.collectionsService.list(await resolveSceneAtlasUserId(sessionToken, userId));
   }
 
   @Get(":collectionId")
@@ -17,31 +17,31 @@ export class CollectionsController {
   }
 
   @Post()
-  create(
+  async create(
     @Body() body: { name: string; description?: string; visibility?: "private" | "shared" },
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.collectionsService.create(resolveSceneAtlasUserId(sessionToken, userId), body);
+    return this.collectionsService.create(await resolveSceneAtlasUserId(sessionToken, userId), body);
   }
 
   @Post(":collectionId/movies/:movieId")
-  addMovie(
+  async addMovie(
     @Param("collectionId") collectionId: string,
     @Param("movieId") movieId: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.collectionsService.addMovie(resolveSceneAtlasUserId(sessionToken, userId), collectionId, movieId);
+    return this.collectionsService.addMovie(await resolveSceneAtlasUserId(sessionToken, userId), collectionId, movieId);
   }
 
   @Delete(":collectionId/movies/:movieId")
-  removeMovie(
+  async removeMovie(
     @Param("collectionId") collectionId: string,
     @Param("movieId") movieId: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.collectionsService.removeMovie(resolveSceneAtlasUserId(sessionToken, userId), collectionId, movieId);
+    return this.collectionsService.removeMovie(await resolveSceneAtlasUserId(sessionToken, userId), collectionId, movieId);
   }
 }

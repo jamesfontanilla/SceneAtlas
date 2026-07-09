@@ -2,24 +2,25 @@ import { Inject, Injectable } from "@nestjs/common";
 import { sceneAtlasStore } from "@sceneatlas/db";
 import { apiEnv } from "../../config/env";
 import { MockAnalysisProvider } from "./providers/mock-analysis.provider";
-import { OpenAiAnalysisProvider } from "./providers/openai-analysis.provider";
+import { GroqAnalysisProvider } from "./providers/groq-analysis.provider";
 import type { AnalysisProvider } from "./providers/analysis-provider.interface";
 
 const ANALYSIS_PROVIDER = "ANALYSIS_PROVIDER";
+const ANALYSIS_CACHE_SOURCE = apiEnv.analysisProvider === "groq" && apiEnv.groqApiKey ? "groq" : "mock";
 
 @Injectable()
 export class AnalysisService {
   constructor(@Inject(ANALYSIS_PROVIDER) private readonly provider: AnalysisProvider) {}
 
   async getAnalysis(movieId: string, spoilers: boolean) {
-    const cached = sceneAtlasStore.getAnalysisCache(movieId, spoilers, apiEnv.analysisProvider);
+    const cached = sceneAtlasStore.getAnalysisCache(movieId, spoilers, ANALYSIS_CACHE_SOURCE);
     if (cached) {
       return cached.result;
     }
 
     try {
       const result = await this.provider.generate(movieId, spoilers);
-      sceneAtlasStore.cacheAnalysis(movieId, spoilers, result, apiEnv.analysisProvider);
+      sceneAtlasStore.cacheAnalysis(movieId, spoilers, result, ANALYSIS_CACHE_SOURCE);
       return result;
     } catch (error) {
       sceneAtlasStore.recordAudit("analysis_provider_failure", "Analysis provider failed", {
@@ -34,8 +35,8 @@ export class AnalysisService {
 
 export const analysisProviderFactory = {
   provide: ANALYSIS_PROVIDER,
-  inject: [MockAnalysisProvider, OpenAiAnalysisProvider],
-  useFactory(mock: MockAnalysisProvider, openAi: OpenAiAnalysisProvider) {
-    return apiEnv.analysisProvider === "openai" ? openAi : mock;
+  inject: [MockAnalysisProvider, GroqAnalysisProvider],
+  useFactory(mock: MockAnalysisProvider, groq: GroqAnalysisProvider) {
+    return apiEnv.analysisProvider === "groq" ? groq : mock;
   }
 };

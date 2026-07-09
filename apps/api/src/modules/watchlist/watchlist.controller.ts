@@ -7,25 +7,25 @@ export class WatchlistController {
   constructor(private readonly watchlistService: WatchlistService) {}
 
   @Get()
-  list(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
-    return this.watchlistService.list(resolveSceneAtlasUserId(sessionToken, userId));
+  async list(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+    return this.watchlistService.list(await resolveSceneAtlasUserId(sessionToken, userId));
   }
 
   @Post(":movieId")
-  add(
+  async add(
     @Param("movieId") movieId: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.watchlistService.add(resolveSceneAtlasUserId(sessionToken, userId), movieId);
+    return this.watchlistService.add(await resolveSceneAtlasUserId(sessionToken, userId), movieId);
   }
 
   @Delete(":movieId")
-  remove(
+  async remove(
     @Param("movieId") movieId: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.watchlistService.remove(resolveSceneAtlasUserId(sessionToken, userId), movieId);
+    return this.watchlistService.remove(await resolveSceneAtlasUserId(sessionToken, userId), movieId);
   }
 }

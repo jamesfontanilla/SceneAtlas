@@ -19,7 +19,7 @@ export class MoviesController {
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    const resolved = resolveSceneAtlasUserId(sessionToken, userId);
+    const resolved = await resolveSceneAtlasUserId(sessionToken, userId);
     this.usageService.consumeSearch(resolved);
     return this.moviesService.search(query, {
       year: year ? Number(year) : undefined,

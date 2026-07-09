@@ -1,19 +1,5 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { Bricolage_Grotesque, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
-
-const display = Cormorant_Garamond({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "500", "600", "700"]
-});
-
-const body = Bricolage_Grotesque({
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "600", "700"]
-});
 
 export const metadata: Metadata = {
   title: {
@@ -28,7 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   const adsenseClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
 
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    <html lang="en">
       <head>
         {adsenseClientId ? (
           <script
@@ -38,9 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           />
         ) : null}
       </head>
-      <body>
-        <ClerkProvider>{children}</ClerkProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

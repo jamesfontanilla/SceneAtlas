@@ -7,10 +7,13 @@
   "scripts": {
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema=prisma/schema.prisma",
+    "pretypecheck": "pnpm prisma:generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "latest"
+    "@prisma/adapter-pg": "latest",
+    "@prisma/client": "latest",
+    "dotenv": "latest"
   },
   "devDependencies": {
     "prisma": "latest"

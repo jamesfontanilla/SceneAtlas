@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { appNavigation, sceneAtlasBrand } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { signOutAction } from "@/lib/actions";
 import type { AccountSnapshot, UsageSnapshot } from "@sceneatlas/shared";
 
 interface AppShellProps {
@@ -51,6 +51,12 @@ export function AppShell({ children, usage, account }: AppShellProps) {
                 <Badge>{account.collectionCount} collections</Badge>
                 <Badge>{account.reviewCount} reviews</Badge>
               </div>
+              <form action={signOutAction} className="sidebar-account__form">
+                <input type="hidden" name="returnTo" value="/" />
+                <Button type="submit" variant="secondary" className="button--small">
+                  Sign out
+                </Button>
+              </form>
             </>
           ) : (
             <>
@@ -58,14 +64,12 @@ export function AppShell({ children, usage, account }: AppShellProps) {
               <h3 className="analysis-card__title">Sign in to keep your lists and reviews in sync.</h3>
               <p className="analysis-card__body">You can still search and browse, but saved state becomes personal once you sign in.</p>
               <div className="auth-form__actions">
-                <SignInButton mode="modal">
-                  <Button variant="secondary" className="button--small">
-                    Sign in
-                  </Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <Button className="button--small">Create account</Button>
-                </SignUpButton>
+                <Button href="/sign-in" variant="secondary" className="button--small">
+                  Sign in
+                </Button>
+                <Button href="/sign-up" className="button--small">
+                  Create account
+                </Button>
               </div>
             </>
           )}

@@ -658,7 +658,7 @@ export const sceneAtlasStore = {
     return mutateState((state) => {
       const email = normalizeEmail(input.email);
       const now = nowIso();
-      const provider = input.provider ?? "authjs";
+      const provider = input.provider ?? "password";
       const targetId = input.id?.trim();
       let existing = targetId ? state.users.find((item) => item.id === targetId) ?? null : null;
 
@@ -764,7 +764,7 @@ export const sceneAtlasStore = {
       name: defaultDisplayName(input.email),
       email: input.email,
       avatar: input.avatar,
-      provider: input.provider ?? "authjs"
+      provider: input.provider ?? "password"
     });
     const session = sceneAtlasStore.createSession(user.id);
 

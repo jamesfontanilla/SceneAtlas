@@ -67,7 +67,7 @@ The product should feel like a premium research tool, not a generic movie catalo
 ### 5.1 Authentication and Accounts
 
 - Users must be able to sign up, sign in, and sign out.
-- The app must support a provider abstraction so the implementation can use Clerk or Auth.js without changing product behavior.
+- The app must use a custom authentication system without changing the product UX across sign-up, sign-in, verification, or password reset.
 - Each user account must store:
   - Display name
   - Email
@@ -220,7 +220,7 @@ System requirements:
 ## 6. Non-Functional Requirements
 
 - Performance: cache movie source and AI results where possible.
-- Reliability: degrade gracefully if the movie data source or OpenAI is unavailable.
+- Reliability: degrade gracefully if the movie data source or Groq is unavailable.
 - Security: keep API keys server-side only.
 - Privacy: do not expose raw provider tokens to the client.
 - Scalability: separate web and API concerns cleanly.
@@ -288,9 +288,9 @@ flowchart LR
   A --> P[(PostgreSQL)]
   A --> R[(Redis Cache / Rate Limit)]
   A --> M["Movie data provider(s)"]
-  A --> O[OpenAI API]
+  A --> G[Groq API]
   A --> Q[Background Jobs]
-  W <-->|auth/session| S[Clerk or Auth.js]
+  W <-->|auth/session| S[Custom auth service]
 ```
 
 ### Service Boundaries
@@ -299,7 +299,7 @@ flowchart LR
 - NestJS: business logic, API orchestration, auth guards, quota checks, and provider adapters
 - PostgreSQL: source of truth for users, movies, analyses, lists, reviews, and subscriptions
 - Redis: caching, rate limiting, and job coordination
-- OpenAI: structured analysis generation
+- Groq: structured analysis generation
 - Wikidata + Wikimedia Commons: source movie metadata, identities, and reusable media
 
 ## 9. Core Data Model
@@ -439,7 +439,7 @@ Recommended approach: a monorepo with a web app, API service, shared packages, a
 ### Key Files to Define Early
 
 - `packages/db/prisma/schema.prisma`: core data model
-- `apps/api/src/modules/ai/ai.service.ts`: prompt assembly, OpenAI calls, and caching
+- `apps/api/src/modules/analysis/analysis.service.ts`: prompt assembly, Groq calls, and caching
 - `apps/api/src/modules/movies/movies.service.ts`: movie data provider access and movie enrichment
 - `apps/api/src/modules/usage/usage.service.ts`: quotas and rate limits
 - `apps/web/app/(app)/movies/[movieId]/page.tsx`: movie research page
@@ -463,7 +463,7 @@ Recommended approach: a monorepo with a web app, API service, shared packages, a
 
 ## 12. Open Questions to Resolve Before Implementation
 
-- Should the auth provider be Clerk, Auth.js, or both behind an abstraction?
+- What exact auth provider stack should power email OTP, password reset, and Google OAuth?
 - Which commercial metadata provider, if any, should supplement Wikidata + Commons later?
 - What exact free-tier quota should apply per day?
 - What export formats are required for phase 1?

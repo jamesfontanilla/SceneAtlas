@@ -17,9 +17,9 @@ export default async function SettingsPage() {
       <div className="settings-grid">
         <Card className="settings-card">
           <Badge className="chip--accent">Auth</Badge>
-          <h3 className="settings-card__title">{account?.authProvider ?? "Clerk"}</h3>
+          <h3 className="settings-card__title">{account?.authProvider ?? "Email + Google"}</h3>
           <p className="settings-card__body">
-            SceneAtlas now uses Clerk for sign-in while the API keeps saved state synchronized through the database.
+            SceneAtlas now uses its own auth flow with email OTP, password reset emails, and Google OAuth.
           </p>
         </Card>
         <Card className="settings-card">
@@ -56,7 +56,7 @@ export default async function SettingsPage() {
           <Badge>Runtime</Badge>
           <h3 className="analysis-card__title">API-backed persistence</h3>
           <p className="analysis-card__body">
-            The web tier stays stateless here, while the API owns saved state and can persist it through the database provider behind Render and Neon.
+            The web tier stays stateless here, while the API owns sessions and can persist auth state through Neon.
           </p>
         </Card>
       </div>

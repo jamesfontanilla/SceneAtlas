@@ -12,12 +12,12 @@ export class ReviewsController {
   }
 
   @Post(":movieId")
-  upsert(
+  async upsert(
     @Param("movieId") movieId: string,
     @Body() body: { title: string; body: string; spoilerTag?: boolean },
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.reviewsService.upsert(resolveSceneAtlasUserId(sessionToken, userId), movieId, body);
+    return this.reviewsService.upsert(await resolveSceneAtlasUserId(sessionToken, userId), movieId, body);
   }
 }

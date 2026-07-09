@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { signInAction } from "@/lib/actions";
+import { forgotPasswordAction } from "@/lib/actions";
 
-interface SignInPageProps {
+interface ForgotPasswordPageProps {
   searchParams: Promise<{ error?: string; message?: string; returnTo?: string }>;
 }
 
@@ -11,21 +11,20 @@ function safeReturnTo(value?: string) {
   return value?.startsWith("/") ? value : "/search";
 }
 
-export default async function SignInPage({ searchParams }: SignInPageProps) {
+export default async function ForgotPasswordPage({ searchParams }: ForgotPasswordPageProps) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo);
-  const googleHref = `/api/auth/google/start?${new URLSearchParams({ returnTo }).toString()}`;
 
   return (
     <Card className="auth-card">
       <div className="auth-grid">
         <div>
-          <Badge className="chip--accent">Welcome back</Badge>
+          <Badge className="chip--accent">Reset access</Badge>
           <h1 className="display-title section-title" style={{ marginTop: 14 }}>
-            Sign in to SceneAtlas
+            Forgot your password?
           </h1>
           <p className="auth-copy">
-            Use your email and password, or continue with Google. Your saved lists and reviews stay tied to your own account.
+            Enter the email tied to your SceneAtlas account and we'll send a reset link through Brevo.
           </p>
           {params.message ? (
             <p className="auth-copy" style={{ color: "var(--success)" }}>
@@ -38,31 +37,21 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             </p>
           ) : null}
           <div className="auth-form__actions">
-            <Button href={googleHref} variant="secondary" className="button--small">
-              Continue with Google
-            </Button>
-            <Button href="/forgot-password" variant="ghost" className="button--small">
-              Forgot password
+            <Button href="/sign-in" variant="secondary" className="button--small">
+              Back to sign in
             </Button>
           </div>
         </div>
 
         <div className="auth-card panel--soft">
-          <form action={signInAction} className="auth-form">
+          <form action={forgotPasswordAction} className="auth-form">
             <input type="hidden" name="returnTo" value={returnTo} />
             <label className="field">
               <span className="field__label">Email</span>
               <input className="field__input" name="email" type="email" autoComplete="email" placeholder="you@example.com" required />
             </label>
-            <label className="field">
-              <span className="field__label">Password</span>
-              <input className="field__input" name="password" type="password" autoComplete="current-password" placeholder="Your password" required />
-            </label>
             <div className="auth-form__actions">
-              <Button type="submit">Sign in</Button>
-              <Button href="/sign-up" variant="secondary">
-                Create account
-              </Button>
+              <Button type="submit">Send reset link</Button>
             </div>
           </form>
         </div>

@@ -3,8 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "predev": "pnpm --filter @sceneatlas/db prisma:generate",
     "dev": "tsx watch src/main.ts",
+    "prestart": "pnpm --filter @sceneatlas/db prisma:generate",
     "start": "tsx src/main.ts",
+    "pretypecheck": "pnpm --filter @sceneatlas/db prisma:generate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

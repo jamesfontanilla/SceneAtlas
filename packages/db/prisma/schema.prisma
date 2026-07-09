@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum SubscriptionTier {
@@ -17,6 +17,11 @@ enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+}
+
+enum AuthChallengePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 enum CollectionVisibility {
@@ -37,8 +42,11 @@ model User {
   email             String              @unique
   name              String?
   image             String?
-  clerkId           String?             @unique
-  authProvider      String              @default("authjs")
+  authProvider      String              @default("password")
+  passwordHash      String?
+  emailVerifiedAt   DateTime?
+  googleSub         String?             @unique
+  lastLoginAt       DateTime?
   subscriptionTier  SubscriptionTier    @default(FREE)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
@@ -50,6 +58,39 @@ model User {
   analysisRequests  AnalysisRequest[]
   exportJobs        ExportJob[]
   subscriptions     Subscription[]
+  authSessions      AuthSession[]
+  authChallenges    AuthChallenge[]
+}
+
+model AuthSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  userAgent  String?
+  ipAddress  String?
+
+  @@index([userId])
+}
+
+model AuthChallenge {
+  id         String                @id @default(cuid())
+  userId     String
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    AuthChallengePurpose
+  tokenHash  String
+  attempts   Int                   @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([userId, purpose])
+  @@index([tokenHash])
 }
 
 model Subscription {

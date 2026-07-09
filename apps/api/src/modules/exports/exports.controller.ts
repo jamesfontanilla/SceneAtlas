@@ -7,20 +7,20 @@ export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}
 
   @Post()
-  create(
+  async create(
     @Body() body: { movieId?: string; format?: "json" | "markdown" },
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.exportsService.create(resolveSceneAtlasUserId(sessionToken, userId), body);
+    return this.exportsService.create(await resolveSceneAtlasUserId(sessionToken, userId), body);
   }
 
   @Get("latest")
-  latest(
+  async latest(
     @Query("movieId") movieId?: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.exportsService.latest(resolveSceneAtlasUserId(sessionToken, userId), movieId);
+    return this.exportsService.latest(await resolveSceneAtlasUserId(sessionToken, userId), movieId);
   }
 }

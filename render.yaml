@@ -12,10 +12,20 @@ services:
       - key: MOVIE_DATA_PROVIDER
         value: wikidata
       - key: ANALYSIS_PROVIDER
-        value: mock
+        value: groq
       - key: DATABASE_URL
         sync: false
-      - key: OPENAI_API_KEY
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: SceneAtlas
+      - key: GROQ_API_KEY
         sync: false
       - key: WIKIDATA_API_URL
         value: https://www.wikidata.org/w/api.php

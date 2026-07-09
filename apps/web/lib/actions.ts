@@ -1,8 +1,12 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { sceneAtlasApiRequest } from "./api";
+import {
+  clearSceneAtlasSessionToken,
+  getSceneAtlasSessionToken,
+  setSceneAtlasSessionToken
+} from "./session";
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -35,8 +39,8 @@ function redirectWithError(path: string, error: unknown, extraParams: Record<str
 }
 
 async function requireSignedIn(returnTo: string) {
-  const { userId } = await auth();
-  if (!userId) {
+  const sessionToken = await getSceneAtlasSessionToken();
+  if (!sessionToken) {
     redirect(buildRedirectUrl("/sign-in", { returnTo }));
   }
 }
@@ -47,6 +51,177 @@ async function jsonRequest<T>(path: string, method: "POST" | "PUT", body?: unkno
     headers: body === undefined ? undefined : { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
+}
+
+export async function signOutAction(formData: FormData) {
+  const returnTo = redirectTo(formData, "/");
+  const sessionToken = await getSceneAtlasSessionToken();
+
+  try {
+    if (sessionToken) {
+      await sceneAtlasApiRequest("/auth/sign-out", { method: "POST" });
+    }
+  } catch (error) {
+    console.warn("SceneAtlas sign-out request failed.", error);
+  }
+
+  await clearSceneAtlasSessionToken();
+  redirect(returnTo);
+}
+
+export async function startSignUpAction(formData: FormData) {
+  const name = readString(formData, "name");
+  const email = readString(formData, "email");
+  const password = readString(formData, "password");
+  const confirmPassword = readString(formData, "confirmPassword");
+  const avatar = readString(formData, "avatar") || undefined;
+  const returnTo = redirectTo(formData, "/search");
+  const verifyPath = buildRedirectUrl("/verify-email", {
+    email,
+    returnTo
+  });
+
+  if (!name || !email || !password) {
+    redirectWithError("/sign-up", new Error("Name, email, and password are required."), { returnTo });
+  }
+
+  if (password !== confirmPassword) {
+    redirectWithError("/sign-up", new Error("Passwords do not match."), { returnTo, email });
+  }
+
+  try {
+    await sceneAtlasApiRequest("/auth/sign-up", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        avatar
+      })
+    });
+  } catch (error) {
+    redirectWithError("/sign-up", error, { returnTo, email });
+  }
+
+  redirect(verifyPath);
+}
+
+export async function resendVerificationAction(formData: FormData) {
+  const email = readString(formData, "email");
+  const returnTo = redirectTo(formData, "/search");
+
+  if (!email) {
+    redirectWithError("/verify-email", new Error("Email is required."), { returnTo });
+  }
+
+  try {
+    await sceneAtlasApiRequest("/auth/resend-verification", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+  } catch (error) {
+    redirectWithError("/verify-email", error, { email, returnTo });
+  }
+
+  redirect(buildRedirectUrl("/verify-email", { email, returnTo, message: "We sent a fresh verification code." }));
+}
+
+export async function verifyEmailAction(formData: FormData) {
+  const email = readString(formData, "email");
+  const code = readString(formData, "code");
+  const returnTo = redirectTo(formData, "/search");
+
+  if (!email || !code) {
+    redirectWithError("/verify-email", new Error("Email and verification code are required."), { email, returnTo });
+  }
+
+  try {
+    const result = await sceneAtlasApiRequest<{ sessionToken: string }>("/auth/verify-email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, code })
+    });
+    await setSceneAtlasSessionToken(result.sessionToken);
+  } catch (error) {
+    redirectWithError("/verify-email", error, { email, returnTo });
+  }
+
+  redirect(returnTo);
+}
+
+export async function signInAction(formData: FormData) {
+  const email = readString(formData, "email");
+  const password = readString(formData, "password");
+  const returnTo = redirectTo(formData, "/search");
+
+  if (!email || !password) {
+    redirectWithError("/sign-in", new Error("Email and password are required."), { returnTo, email });
+  }
+
+  try {
+    const result = await sceneAtlasApiRequest<{ sessionToken: string }>("/auth/sign-in", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    await setSceneAtlasSessionToken(result.sessionToken);
+  } catch (error) {
+    redirectWithError("/sign-in", error, { returnTo, email });
+  }
+
+  redirect(returnTo);
+}
+
+export async function forgotPasswordAction(formData: FormData) {
+  const email = readString(formData, "email");
+  const returnTo = redirectTo(formData, "/search");
+
+  if (!email) {
+    redirectWithError("/forgot-password", new Error("Email is required."), { returnTo });
+  }
+
+  try {
+    await sceneAtlasApiRequest("/auth/forgot-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+  } catch (error) {
+    redirectWithError("/forgot-password", error, { returnTo, email });
+  }
+
+  redirect(buildRedirectUrl("/sign-in", { message: "If that email exists, we sent a reset link." }));
+}
+
+export async function resetPasswordAction(formData: FormData) {
+  const token = readString(formData, "token");
+  const password = readString(formData, "password");
+  const confirmPassword = readString(formData, "confirmPassword");
+  const returnTo = redirectTo(formData, "/search");
+  const email = readString(formData, "email");
+
+  if (!token || !password) {
+    redirectWithError("/reset-password", new Error("Reset token and new password are required."), { email, returnTo });
+  }
+
+  if (password !== confirmPassword) {
+    redirectWithError("/reset-password", new Error("Passwords do not match."), { email, returnTo, token });
+  }
+
+  try {
+    const result = await sceneAtlasApiRequest<{ sessionToken: string }>("/auth/reset-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, password })
+    });
+    await setSceneAtlasSessionToken(result.sessionToken);
+  } catch (error) {
+    redirectWithError("/reset-password", error, { email, returnTo, token });
+  }
+
+  redirect(returnTo);
 }
 
 export async function toggleWatchlistAction(formData: FormData) {

@@ -7,17 +7,17 @@ export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
   @Get("me")
-  me(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
-    return this.subscriptionsService.me(resolveSceneAtlasUserId(sessionToken, userId));
+  async me(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+    return this.subscriptionsService.me(await resolveSceneAtlasUserId(sessionToken, userId));
   }
 
   @Post("upgrade")
-  upgrade(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
-    return this.subscriptionsService.upgrade(resolveSceneAtlasUserId(sessionToken, userId));
+  async upgrade(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+    return this.subscriptionsService.upgrade(await resolveSceneAtlasUserId(sessionToken, userId));
   }
 
   @Post("downgrade")
-  downgrade(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
-    return this.subscriptionsService.downgrade(resolveSceneAtlasUserId(sessionToken, userId));
+  async downgrade(@Headers("x-sceneatlas-session") sessionToken = "", @Headers("x-sceneatlas-user-id") userId = "anonymous") {
+    return this.subscriptionsService.downgrade(await resolveSceneAtlasUserId(sessionToken, userId));
   }
 }

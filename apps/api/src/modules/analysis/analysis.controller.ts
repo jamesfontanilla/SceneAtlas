@@ -17,7 +17,7 @@ export class AnalysisController {
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    const resolved = resolveSceneAtlasUserId(sessionToken, userId);
+    const resolved = await resolveSceneAtlasUserId(sessionToken, userId);
     this.usageService.consumeAnalysis(resolved);
     return this.analysisService.getAnalysis(movieId, spoilers === "1" || spoilers === "true");
   }

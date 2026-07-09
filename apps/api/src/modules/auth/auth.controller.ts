@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Headers, Post } from "@nestjs/common";
-import { resolveSceneAtlasUserId } from "../../common/sceneatlas-request";
 import { AuthService } from "./auth.service";
 
 @Controller("auth")
@@ -7,40 +6,47 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("sign-up")
-  signUp(@Body() body: { name: string; email: string; avatar?: string; provider?: string }) {
+  async signUp(@Body() body: { name: string; email: string; password: string; avatar?: string }) {
     return this.authService.signUp(body);
   }
 
+  @Post("verify-email")
+  async verifyEmail(@Body() body: { email: string; code: string }) {
+    return this.authService.verifyEmail(body);
+  }
+
+  @Post("resend-verification")
+  async resendVerification(@Body() body: { email: string }) {
+    return this.authService.resendVerification(body);
+  }
+
   @Post("sign-in")
-  signIn(@Body() body: { email: string; avatar?: string; provider?: string; name?: string }) {
-    return this.authService.signIn({
-      email: body.email,
-      avatar: body.avatar,
-      provider: body.provider
-    });
+  async signIn(@Body() body: { email: string; password: string }) {
+    return this.authService.signIn(body);
+  }
+
+  @Post("forgot-password")
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body);
+  }
+
+  @Post("reset-password")
+  async resetPassword(@Body() body: { token: string; password: string }) {
+    return this.authService.resetPassword(body);
+  }
+
+  @Post("google")
+  async google(@Body() body: { googleSub: string; email: string; name: string; avatar?: string; emailVerified: boolean }) {
+    return this.authService.googleSignIn(body);
   }
 
   @Post("sign-out")
-  signOut(@Headers("x-sceneatlas-session") sessionToken = "") {
+  async signOut(@Headers("x-sceneatlas-session") sessionToken = "") {
     return this.authService.signOut(sessionToken);
   }
 
   @Get("me")
-  me(
-    @Headers("x-sceneatlas-session") sessionToken = "",
-    @Headers("x-sceneatlas-user-id") userId = "anonymous",
-    @Headers("x-sceneatlas-user-name") displayName = "",
-    @Headers("x-sceneatlas-user-email") email = "",
-    @Headers("x-sceneatlas-user-avatar") avatar = "",
-    @Headers("x-sceneatlas-auth-provider") provider = "clerk"
-  ) {
-    const resolved = resolveSceneAtlasUserId(sessionToken, userId);
-    return this.authService.me(resolved, {
-      sessionToken,
-      displayName,
-      email,
-      avatar,
-      provider
-    });
+  async me(@Headers("x-sceneatlas-session") sessionToken = "") {
+    return this.authService.me(sessionToken);
   }
 }

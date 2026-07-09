@@ -10,18 +10,15 @@ Recommended environment variables:
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_API_BASE_URL`
 - `NEXT_PUBLIC_ADSENSE_CLIENT_ID`
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-- `CLERK_SECRET_KEY`
-- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`
-- `NEXT_PUBLIC_CLERK_SIGN_UP_URL`
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`
-- `DATABASE_URL`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_OAUTH_REDIRECT_URI`
 
 Notes:
 
-- If Clerk env vars are missing, the edge middleware can fail with `MIDDLEWARE_INVOCATION_FAILED`.
+- `GOOGLE_OAUTH_REDIRECT_URI` should point to `https://your-vercel-domain/api/auth/google/callback`.
 - AdSense verification needs the live site to serve the root layout with the sitewide AdSense snippet present.
+- The analysis provider is pinned in code to Groq's `openai/gpt-oss-120b` model, so you only need to configure `GROQ_API_KEY`.
 
 ## Render
 
@@ -31,9 +28,14 @@ Recommended environment variables:
 
 - `PORT`
 - `DATABASE_URL`
+- `NEXT_PUBLIC_APP_URL`
+- `AUTH_SECRET`
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
+- `GROQ_API_KEY`
 - `MOVIE_DATA_PROVIDER`
 - `ANALYSIS_PROVIDER`
-- `OPENAI_API_KEY`
 - `WIKIDATA_API_URL`
 - `COMMONS_API_URL`
 

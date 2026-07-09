@@ -7,21 +7,21 @@ export class RatingsController {
   constructor(private readonly ratingsService: RatingsService) {}
 
   @Get(":movieId")
-  get(
+  async get(
     @Param("movieId") movieId: string,
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.ratingsService.get(movieId, resolveSceneAtlasUserId(sessionToken, userId));
+    return this.ratingsService.get(movieId, await resolveSceneAtlasUserId(sessionToken, userId));
   }
 
   @Put(":movieId")
-  upsert(
+  async upsert(
     @Param("movieId") movieId: string,
     @Body() body: { value: number },
     @Headers("x-sceneatlas-session") sessionToken = "",
     @Headers("x-sceneatlas-user-id") userId = "anonymous"
   ) {
-    return this.ratingsService.upsert(resolveSceneAtlasUserId(sessionToken, userId), movieId, Number(body.value));
+    return this.ratingsService.upsert(await resolveSceneAtlasUserId(sessionToken, userId), movieId, Number(body.value));
   }
 }

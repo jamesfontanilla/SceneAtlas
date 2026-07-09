@@ -16,7 +16,7 @@ import type {
   ReviewPreview,
   UsageSnapshot
 } from "@sceneatlas/shared";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { getSceneAtlasSessionToken } from "./session";
 
 type ExportFormat = "json" | "markdown";
 
@@ -103,24 +103,16 @@ function buildApiUrl(path: string) {
 }
 
 async function getRequestHeaders() {
-  const { userId, sessionId } = await auth();
-  const user = userId ? await currentUser() : null;
-  const primaryEmail = user?.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? "";
-  const displayName =
-    user?.fullName?.trim() ||
-    [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
-    user?.username?.trim() ||
-    primaryEmail ||
-    "";
+  const sessionToken = await getSceneAtlasSessionToken();
 
   return {
     "x-sceneatlas-client": "web",
-    "x-sceneatlas-session": sessionId ?? "",
-    "x-sceneatlas-user-id": userId ?? "anonymous",
-    "x-sceneatlas-user-name": displayName,
-    "x-sceneatlas-user-email": primaryEmail,
-    "x-sceneatlas-user-avatar": user?.imageUrl ?? "",
-    "x-sceneatlas-auth-provider": userId ? "clerk" : "anonymous"
+    "x-sceneatlas-session": sessionToken,
+    "x-sceneatlas-user-id": "anonymous",
+    "x-sceneatlas-user-name": "",
+    "x-sceneatlas-user-email": "",
+    "x-sceneatlas-user-avatar": "",
+    "x-sceneatlas-auth-provider": sessionToken ? "session" : "anonymous"
   };
 }
 
