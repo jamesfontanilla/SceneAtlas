@@ -9,6 +9,12 @@ export class WatchlistService {
 
   add(userId: string, movieId: string) {
     const movie = sceneAtlasStore.addToWatchlist(userId, movieId);
+    sceneAtlasStore.recordAnalyticsEvent("watchlist_save", {
+      userId,
+      payload: {
+        movieId
+      }
+    });
     return {
       onWatchlist: true,
       movie,
@@ -18,6 +24,12 @@ export class WatchlistService {
 
   remove(userId: string, movieId: string) {
     sceneAtlasStore.removeFromWatchlist(userId, movieId);
+    sceneAtlasStore.recordAnalyticsEvent("watchlist_remove", {
+      userId,
+      payload: {
+        movieId
+      }
+    });
     return {
       onWatchlist: false,
       items: sceneAtlasStore.listWatchlist(userId)

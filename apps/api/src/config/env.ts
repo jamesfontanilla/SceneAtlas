@@ -8,6 +8,7 @@ export const apiEnv = {
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   authSecret: process.env.AUTH_SECRET ?? "",
+  adminEmails: process.env.SCENEATLAS_ADMIN_EMAILS ?? process.env.ADMIN_EMAILS ?? "",
   brevoApiKey: process.env.BREVO_API_KEY ?? "",
   brevoSenderEmail: process.env.BREVO_SENDER_EMAIL ?? "",
   brevoSenderName: process.env.BREVO_SENDER_NAME ?? "SceneAtlas"

@@ -3,6 +3,7 @@ import { addMovieToCollectionAction, exportNotesAction, toggleWatchlistAction, u
 import {
   fetchAccount,
   fetchAnalysis,
+  fetchChatSessions,
   fetchCollections,
   fetchLatestExport,
   fetchMovie,
@@ -19,11 +20,12 @@ import { SpoilerToggle } from "@/components/ui/spoiler-toggle";
 import { AdSlot } from "@/components/ui/ad-slot";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { formatRating, formatRuntime } from "@/lib/format";
+import { ChatPanel } from "@/features/movie-detail/chat-panel";
 import { InsightPanel, RelationshipMap, SimilarMoviesGrid, TimelineRail } from "@/features/movie-detail/analysis-panels";
 
 interface MoviePageProps {
   params: Promise<{ movieId: string }>;
-  searchParams: Promise<{ spoilers?: string; error?: string }>;
+  searchParams: Promise<{ spoilers?: string; error?: string; sessionId?: string }>;
 }
 
 export async function generateMetadata({ params }: MoviePageProps) {
@@ -36,9 +38,26 @@ export async function generateMetadata({ params }: MoviePageProps) {
     };
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const canonical = `${baseUrl.replace(/\/$/, "")}/movies/${movie.slug}`;
+
   return {
     title: `${movie.title} (${movie.year})`,
-    description: movie.overview
+    description: movie.overview,
+    alternates: {
+      canonical
+    },
+    openGraph: {
+      title: `${movie.title} (${movie.year})`,
+      description: movie.overview,
+      url: canonical,
+      type: "article"
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${movie.title} (${movie.year})`,
+      description: movie.overview
+    }
   };
 }
 
@@ -53,15 +72,17 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
   }
 
   const analysis = await fetchAnalysis(movieId, spoilers);
-  const [usage, account, ratingSummary, reviews, latestExport, collections, watchlist] = await Promise.all([
+  const [usage, account, ratingSummary, reviews, latestExport, collections, watchlist, chatSessions] = await Promise.all([
     fetchUsage(),
     fetchAccount(),
     fetchRatingSummary(movieId),
     fetchReviews(movieId),
     fetchLatestExport(movieId),
     fetchCollections(),
-    fetchWatchlist()
+    fetchWatchlist(),
+    fetchChatSessions(movieId)
   ]);
+  const activeChatSession = query.sessionId ? chatSessions.sessions.find((session) => session.id === query.sessionId) : chatSessions.sessions[0];
 
   const returnTo = `/movies/${movie.slug}${spoilers ? "?spoilers=1" : ""}`;
   const averageRating = ratingSummary.averageRating ? formatRating(ratingSummary.averageRating) : "No ratings yet";
@@ -120,6 +141,8 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
               body={spoilers ? analysis.spoilerEnding : "Enable spoilers to read the ending explanation."}
             />
           </div>
+
+          <ChatPanel activeSession={activeChatSession ?? null} movieId={movie.slug} sessions={chatSessions.sessions} />
 
           <div className="analysis-grid">
             <Card className="analysis-card">
@@ -306,6 +329,30 @@ export default async function MoviePage({ params, searchParams }: MoviePageProps
         <SectionHeading eyebrow="Similar titles" title="Recommended next watches" copy="Recommendations are grounded in source metadata and AI ranking, so they feel thoughtful rather than random." />
         <SimilarMoviesGrid items={analysis.similar} />
       </section>
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            {
+              "@context": "https://schema.org",
+              "@type": "Movie",
+              name: movie.title,
+              description: movie.overview,
+              datePublished: movie.releaseDate,
+              genre: movie.genres,
+              duration: `PT${movie.runtimeMinutes}M`,
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: movie.rating,
+                ratingCount: ratingSummary.ratingCount
+              }
+            },
+            null,
+            2
+          )
+        }}
+        type="application/ld+json"
+      />
 
       <section className="section">
         <SectionHeading

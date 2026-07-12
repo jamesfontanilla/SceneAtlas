@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
+import { RouteAnalytics } from "@/components/analytics/route-analytics";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
     default: "SceneAtlas",
     template: "%s | SceneAtlas"
@@ -24,7 +27,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           />
         ) : null}
       </head>
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <RouteAnalytics />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

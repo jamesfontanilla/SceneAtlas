@@ -406,3 +406,157 @@ export async function exportNotesAction(formData: FormData) {
 
   redirect(returnTo);
 }
+
+export async function updateProfileAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/profile"));
+
+  const returnTo = redirectTo(formData, "/profile");
+
+  try {
+    await sceneAtlasApiRequest("/profile/me", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        displayName: readString(formData, "displayName") || undefined,
+        avatar: readString(formData, "avatar") || undefined
+      })
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(returnTo);
+}
+
+export async function startChatSessionAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/search"));
+
+  const movieId = readString(formData, "movieId");
+  const returnTo = redirectTo(formData, movieId ? `/movies/${movieId}/chat` : "/search");
+  if (!movieId) {
+    redirectWithError(returnTo, new Error("Movie id is required."));
+  }
+
+  try {
+    const result = await sceneAtlasApiRequest<{ session: { id: string } } & Record<string, unknown>>("/chat/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        movieId,
+        spoilers: readBoolean(formData, "spoilers")
+      })
+    });
+    redirect(`/movies/${movieId}/chat?sessionId=${encodeURIComponent(result.session.id)}`);
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+}
+
+export async function sendChatMessageAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/search"));
+
+  const sessionId = readString(formData, "sessionId");
+  const movieId = readString(formData, "movieId");
+  const content = readString(formData, "content");
+  const returnTo = redirectTo(formData, movieId ? `/movies/${movieId}/chat` : "/search");
+
+  if (!sessionId || !movieId || !content) {
+    redirectWithError(returnTo, new Error("Session, movie, and message content are required."));
+  }
+
+  try {
+    await sceneAtlasApiRequest(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content })
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(`/movies/${movieId}/chat?sessionId=${encodeURIComponent(sessionId)}`);
+}
+
+export async function archiveChatSessionAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/profile/chats"));
+
+  const sessionId = readString(formData, "sessionId");
+  const movieId = readString(formData, "movieId");
+  const returnTo = redirectTo(formData, movieId ? `/movies/${movieId}/chat` : "/profile/chats");
+
+  if (!sessionId) {
+    redirectWithError(returnTo, new Error("Session id is required."));
+  }
+
+  try {
+    await sceneAtlasApiRequest(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE"
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(returnTo);
+}
+
+export async function featureMovieAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/admin"));
+
+  const movieId = readString(formData, "movieId");
+  const returnTo = redirectTo(formData, "/admin");
+
+  if (!movieId) {
+    redirectWithError(returnTo, new Error("Movie id is required."));
+  }
+
+  try {
+    await sceneAtlasApiRequest(`/admin/feature/${encodeURIComponent(movieId)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ featured: true })
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(returnTo);
+}
+
+export async function invalidateCacheAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/admin"));
+
+  const movieId = readString(formData, "movieId") || undefined;
+  const returnTo = redirectTo(formData, "/admin");
+
+  try {
+    await sceneAtlasApiRequest("/admin/cache/invalidate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ movieId })
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(returnTo);
+}
+
+export async function rebuildAnalysisAction(formData: FormData) {
+  await requireSignedIn(redirectTo(formData, "/admin"));
+
+  const movieId = readString(formData, "movieId");
+  const returnTo = redirectTo(formData, movieId ? `/movies/${movieId}` : "/admin");
+  if (!movieId) {
+    redirectWithError(returnTo, new Error("Movie id is required."));
+  }
+
+  try {
+    await sceneAtlasApiRequest(`/admin/analysis/${encodeURIComponent(movieId)}/rebuild?spoilers=${readBoolean(formData, "spoilers") ? "1" : "0"}`, {
+      method: "POST"
+    });
+  } catch (error) {
+    redirectWithError(returnTo, error);
+  }
+
+  redirect(returnTo);
+}

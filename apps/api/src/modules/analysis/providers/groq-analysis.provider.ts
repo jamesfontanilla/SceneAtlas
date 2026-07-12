@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { getSceneAtlasMovie } from "@sceneatlas/shared";
 import type { MovieAnalysis, MovieDetail, RelationshipEdge, SimilarMovie, TimelineEvent } from "@sceneatlas/shared";
+import { SceneAtlasError } from "@sceneatlas/db";
 import { apiEnv } from "../../../config/env";
 import type { AnalysisProvider } from "./analysis-provider.interface";
 
@@ -193,7 +194,7 @@ export class GroqAnalysisProvider implements AnalysisProvider {
     }
 
     if (!apiEnv.groqApiKey) {
-      return spoilers ? movie.analysis : redactEnding(movie.analysis);
+      throw new SceneAtlasError("Groq provider is unavailable because GROQ_API_KEY is missing.", "STATE_ERROR");
     }
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {

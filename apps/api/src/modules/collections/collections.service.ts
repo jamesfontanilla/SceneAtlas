@@ -20,14 +20,38 @@ export class CollectionsService {
   }
 
   create(userId: string, input: { name: string; description?: string; visibility?: "private" | "shared" }) {
-    return sceneAtlasStore.createCollection(userId, input);
+    const collection = sceneAtlasStore.createCollection(userId, input);
+    sceneAtlasStore.recordAnalyticsEvent("collection_create", {
+      userId,
+      payload: {
+        collectionId: collection.id,
+        name: collection.name
+      }
+    });
+    return collection;
   }
 
   addMovie(userId: string, collectionId: string, movieId: string) {
-    return sceneAtlasStore.addMovieToCollection(userId, collectionId, movieId);
+    const collection = sceneAtlasStore.addMovieToCollection(userId, collectionId, movieId);
+    sceneAtlasStore.recordAnalyticsEvent("collection_add_movie", {
+      userId,
+      payload: {
+        collectionId,
+        movieId
+      }
+    });
+    return collection;
   }
 
   removeMovie(userId: string, collectionId: string, movieId: string) {
-    return sceneAtlasStore.removeMovieFromCollection(userId, collectionId, movieId);
+    const removed = sceneAtlasStore.removeMovieFromCollection(userId, collectionId, movieId);
+    sceneAtlasStore.recordAnalyticsEvent("collection_remove_movie", {
+      userId,
+      payload: {
+        collectionId,
+        movieId
+      }
+    });
+    return removed;
   }
 }

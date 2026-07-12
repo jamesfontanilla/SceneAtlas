@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { sceneAtlasMovies } from "@sceneatlas/shared";
 
 const routes = [
   "/",
@@ -7,10 +8,7 @@ const routes = [
   "/collections",
   "/billing",
   "/settings",
-  "/movies/interstellar",
-  "/movies/arrival",
-  "/movies/blade-runner-2049",
-  "/movies/dune"
+  ...sceneAtlasMovies.map((movie) => `/movies/${movie.slug}`)
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

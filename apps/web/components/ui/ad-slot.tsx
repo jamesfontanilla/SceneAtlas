@@ -1,4 +1,5 @@
 import { Button } from "./button";
+import { EventPixel } from "@/components/analytics/event-pixel";
 
 interface AdSlotProps {
   title: string;
@@ -11,6 +12,7 @@ interface AdSlotProps {
 export function AdSlot({ title, copy, cta, href, eyebrow = "Sponsored" }: AdSlotProps) {
   return (
     <aside className="ad-slot">
+      <EventPixel eventName="ad_impression" impression payload={{ title, eyebrow, href }} />
       <span className="ad-slot__label">{eyebrow}</span>
       <h3 className="ad-slot__title">{title}</h3>
       <p className="ad-slot__body">{copy}</p>

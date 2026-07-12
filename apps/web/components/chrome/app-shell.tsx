@@ -14,6 +14,7 @@ interface AppShellProps {
 export function AppShell({ children, usage, account }: AppShellProps) {
   const searchLabel = usage.isPremium ? "Unlimited" : `${usage.searchesRemaining} left today`;
   const analysisLabel = usage.isPremium ? "Unlimited" : `${usage.analysesRemaining} left`;
+  const chatLabel = usage.isPremium ? "Unlimited" : `${usage.chatMessagesRemaining ?? 0} left`;
 
   return (
     <div className="sceneatlas-container sceneatlas-container--wide app-shell">
@@ -27,11 +28,18 @@ export function AppShell({ children, usage, account }: AppShellProps) {
             </span>
           </Link>
           <nav className="app-nav" aria-label="App">
-            {appNavigation.map((item) => (
-              <Link className="app-nav__link" href={item.href} key={item.href}>
-                {item.label}
+            {appNavigation
+              .filter((item) => item.href !== "/analytics" || account?.isAdmin)
+              .map((item) => (
+                <Link className="app-nav__link" href={item.href} key={item.href}>
+                  {item.label}
+                </Link>
+              ))}
+            {account?.isAdmin ? (
+              <Link className="app-nav__link" href="/admin">
+                Admin
               </Link>
-            ))}
+            ) : null}
           </nav>
         </div>
 
@@ -50,6 +58,7 @@ export function AppShell({ children, usage, account }: AppShellProps) {
                 <Badge>{account.watchlistCount} saved</Badge>
                 <Badge>{account.collectionCount} collections</Badge>
                 <Badge>{account.reviewCount} reviews</Badge>
+                {account.isAdmin ? <Badge className="chip--accent">Admin</Badge> : null}
               </div>
               <form action={signOutAction} className="sidebar-account__form">
                 <input type="hidden" name="returnTo" value="/" />
@@ -89,6 +98,13 @@ export function AppShell({ children, usage, account }: AppShellProps) {
               <p className="sidebar-stat__value">{analysisLabel}</p>
             </div>
             <Badge>{usage.isPremium ? "Premium" : "Free"}</Badge>
+          </div>
+          <div className="sidebar-stat">
+            <div>
+              <p className="sidebar-stat__label">Chat messages</p>
+              <p className="sidebar-stat__value">{chatLabel}</p>
+            </div>
+            <Badge className={usage.adsEnabled ? "chip--accent" : ""}>{usage.isPremium ? "Pro" : "Capped"}</Badge>
           </div>
           <Button href="/billing" variant="secondary" className="button--small">
             Upgrade access

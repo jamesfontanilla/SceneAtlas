@@ -25,11 +25,17 @@ export class MoviesController {
       year: year ? Number(year) : undefined,
       genre: genre?.trim() || undefined,
       language: language?.trim() || undefined
-    });
+    }, resolved);
   }
 
   @Get(":movieId")
-  getMovie(@Param("movieId") movieId: string) {
-    return this.moviesService.findBySlug(movieId);
+  async getMovie(
+    @Param("movieId") movieId: string,
+    @Headers("x-sceneatlas-session") sessionToken = "",
+    @Headers("x-sceneatlas-user-id") userId = "anonymous",
+    @Headers("referer") referrer?: string
+  ) {
+    const resolved = await resolveSceneAtlasUserId(sessionToken, userId);
+    return this.moviesService.findBySlug(movieId, resolved, referrer);
   }
 }

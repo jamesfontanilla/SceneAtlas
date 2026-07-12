@@ -9,6 +9,7 @@ import { analysisProviderFactory } from "./analysis.service";
 @Module({
   imports: [UsageModule],
   controllers: [AnalysisController],
-  providers: [AnalysisService, MockAnalysisProvider, GroqAnalysisProvider, analysisProviderFactory]
+  providers: [AnalysisService, MockAnalysisProvider, GroqAnalysisProvider, analysisProviderFactory],
+  exports: [AnalysisService]
 })
 export class AnalysisModule {}

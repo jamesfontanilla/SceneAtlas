@@ -798,6 +798,81 @@ textarea {
   gap: 16px;
 }
 
+.panel--thin {
+  border-radius: 22px;
+}
+
+.chat-column {
+  display: grid;
+  gap: 16px;
+}
+
+.chat-thread {
+  display: grid;
+  gap: 14px;
+}
+
+.chat-message {
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chat-message--assistant {
+  background: linear-gradient(180deg, rgba(214, 176, 106, 0.08), rgba(255, 255, 255, 0.03));
+}
+
+.chat-message--user {
+  margin-left: auto;
+  background: rgba(125, 160, 255, 0.08);
+}
+
+.chat-message--system {
+  background: rgba(168, 132, 255, 0.08);
+}
+
+.chat-composer {
+  padding-top: 4px;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: skeleton-shimmer 1.4s infinite;
+}
+
+.skeleton--title {
+  width: min(540px, 78%);
+  height: 52px;
+}
+
+.skeleton--copy {
+  width: min(420px, 62%);
+  height: 18px;
+  margin-top: 16px;
+}
+
+.skeleton--card {
+  min-height: 180px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
 .search-empty {
   padding: 34px;
   text-align: center;
@@ -837,6 +912,39 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-table td {
+  color: var(--muted-strong);
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .toggle {
@@ -1056,5 +1164,11 @@ textarea {
   .metric-grid,
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

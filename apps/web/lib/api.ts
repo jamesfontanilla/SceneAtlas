@@ -25,6 +25,7 @@ interface ApiError extends Error {
 }
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+const allowLocalFallbacks = process.env.VERCEL !== "1";
 
 export interface ExportJobSnapshot {
   id: string;
@@ -35,6 +36,169 @@ export interface ExportJobSnapshot {
   status: "queued" | "ready" | "failed";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminUsageBucketSnapshot {
+  userId: string;
+  displayName: string;
+  email: string;
+  dayKey: string;
+  searchesUsed: number;
+  analysesUsed: number;
+  exportUses: number;
+  reviewsUsed: number;
+  collectionCreates: number;
+  searchesLimit: number;
+  analysesLimit: number;
+  isPremium: boolean;
+  adsEnabled: boolean;
+}
+
+export interface AdminMetricsSnapshot {
+  users: number;
+  premiumUsers: number;
+  searchCacheEntries: number;
+  analysisCacheEntries: number;
+  failedRequests: number;
+  quotaDenials: number;
+  subscriptions: Array<{
+    id: string;
+    displayName: string;
+    tier: string;
+    status: string;
+  }>;
+  latestEvents: Array<{
+    id: string;
+    kind: string;
+    message: string;
+    metadata?: Record<string, unknown>;
+    createdAt: string;
+  }>;
+}
+
+export interface AdminAnalysisQueueItem {
+  id: string;
+  movieId: string;
+  movieTitle: string;
+  spoilerEnabled: boolean;
+  status: string;
+  hasResult: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminFailureSnapshot {
+  id: string;
+  kind: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AdminExportJobSnapshot {
+  id: string;
+  userId: string;
+  movieId?: string;
+  format: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  payloadSize: number;
+}
+
+export interface AdminSubscriptionSnapshot {
+  id: string;
+  displayName: string;
+  email: string;
+  tier: string;
+  status: string;
+  authProvider: string;
+  updatedAt: string;
+}
+
+export interface FeaturedQuerySnapshot {
+  query: string;
+  count: number;
+  lastSeenAt: string;
+}
+
+export interface SearchSuggestionSnapshot {
+  suggestions: string[];
+}
+
+export interface SearchEventSnapshot {
+  id: string;
+  userId: string;
+  query: string;
+  filters: MovieSearchFilters;
+  resultCount: number;
+  provider: string;
+  createdAt: string;
+}
+
+export interface MovieViewEventSnapshot {
+  id: string;
+  userId: string;
+  movieId: string;
+  spoilerEnabled: boolean;
+  referrer?: string;
+  createdAt: string;
+}
+
+export interface AnalyticsSummarySnapshot {
+  total: number;
+  byEventName: Record<string, number>;
+  recentEvents: Array<{
+    id: string;
+    eventName: string;
+    userId?: string;
+    sessionId?: string;
+    payload?: Record<string, unknown>;
+    createdAt: string;
+  }>;
+}
+
+export interface ChatMessageSnapshot {
+  id: string;
+  sessionId: string;
+  role: "system" | "user" | "assistant";
+  content: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  createdAt: string;
+}
+
+export interface ChatSessionSnapshot {
+  id: string;
+  userId: string;
+  movieId: string;
+  summary?: string;
+  provider: string;
+  model: string;
+  promptVersion: string;
+  spoilerEnabled: boolean;
+  archived: boolean;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount?: number;
+  lastMessage?: ChatMessageSnapshot | null;
+}
+
+export interface ProfileSnapshot {
+  account: AccountSnapshot;
+  joinDate: string | null;
+  lastLoginAt: string | null;
+  chatSessionCount: number;
+  searchCount: number;
+  viewCount: number;
+  analysisCount: number;
+  recentActivity: Array<{
+    kind: "search" | "view" | "analytics";
+    title: string;
+    detail: string;
+    createdAt: string;
+  }>;
 }
 
 function movieToBrief(movie: MovieDetail): MovieBrief {
@@ -177,7 +341,15 @@ export async function sceneAtlasApiRequest<T>(path: string, init: RequestInit = 
 
 async function requestJsonOrFallback<T>(path: string, fallback: () => T | Promise<T>, init: RequestInit = {}) {
   if (!apiBase) {
-    return fallback();
+    if (allowLocalFallbacks) {
+      return fallback();
+    }
+
+    throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured.");
+  }
+
+  if (!allowLocalFallbacks) {
+    return requestJson<T>(path, init);
   }
 
   try {
@@ -269,6 +441,187 @@ export async function fetchRatingSummary(movieId: string): Promise<{
 export async function fetchLatestExport(movieId?: string): Promise<ExportJobSnapshot | null> {
   const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
   return requestJsonOrFallback<ExportJobSnapshot | null>(`/exports/latest${params}`, async () => null);
+}
+
+export async function fetchAdminMetrics(): Promise<{
+  metrics: AdminMetricsSnapshot;
+  usageBuckets: AdminUsageBucketSnapshot[];
+}> {
+  return sceneAtlasApiRequest<{
+    metrics: AdminMetricsSnapshot;
+    usageBuckets: AdminUsageBucketSnapshot[];
+  }>("/admin/metrics");
+}
+
+export async function fetchAdminQueue(): Promise<{
+  analysisRequests: AdminAnalysisQueueItem[];
+}> {
+  return sceneAtlasApiRequest<{ analysisRequests: AdminAnalysisQueueItem[] }>("/admin/queue");
+}
+
+export async function fetchAdminFailures(): Promise<{
+  failedRequests: AdminFailureSnapshot[];
+}> {
+  return sceneAtlasApiRequest<{ failedRequests: AdminFailureSnapshot[] }>("/admin/failures");
+}
+
+export async function fetchAdminExportJobs(): Promise<{
+  exportJobs: AdminExportJobSnapshot[];
+}> {
+  return sceneAtlasApiRequest<{ exportJobs: AdminExportJobSnapshot[] }>("/admin/export-jobs");
+}
+
+export async function fetchAdminSubscriptions(): Promise<{
+  subscriptions: AdminSubscriptionSnapshot[];
+}> {
+  return sceneAtlasApiRequest<{ subscriptions: AdminSubscriptionSnapshot[] }>("/admin/subscriptions");
+}
+
+export async function fetchFeaturedMovies(): Promise<MovieBrief[]> {
+  return requestJsonOrFallback<{ featuredMovies: MovieBrief[] }>("/discover/featured", async () => ({
+    featuredMovies: sceneAtlasMovies.slice(0, 4).map(movieToBrief)
+  })).then((response) => response.featuredMovies);
+}
+
+export async function fetchTrendingQueries(): Promise<FeaturedQuerySnapshot[]> {
+  return requestJsonOrFallback<{ queries: FeaturedQuerySnapshot[] }>("/search/trending", async () => ({
+    queries: sceneAtlasMovies.slice(0, 4).map((movie) => ({
+      query: movie.title,
+      count: 1,
+      lastSeenAt: movie.releaseDate ?? new Date().toISOString()
+    }))
+  })).then((response) => response.queries);
+}
+
+export async function fetchSearchSuggestions(query: string): Promise<string[]> {
+  const params = new URLSearchParams();
+  params.set("q", query);
+  return requestJsonOrFallback<SearchSuggestionSnapshot>(`/search/suggestions?${params.toString()}`, async () => ({
+    suggestions: sceneAtlasMovies
+      .filter((movie) => movie.title.toLowerCase().includes(query.trim().toLowerCase()))
+      .map((movie) => movie.title)
+  })).then((response) => response.suggestions);
+}
+
+export async function fetchProfile(): Promise<ProfileSnapshot | null> {
+  return requestJsonOrFallback<ProfileSnapshot | null>(`/profile/me`, async () => null);
+}
+
+export async function fetchProfileHistory(): Promise<{
+  views: MovieViewEventSnapshot[];
+  analyses: Array<{
+    movieId: string;
+    spoilers: boolean;
+    eventName: string;
+    createdAt: string;
+  }>;
+  recentActivity: ProfileSnapshot["recentActivity"];
+}> {
+  return requestJsonOrFallback<{
+    views: MovieViewEventSnapshot[];
+    analyses: Array<{
+      movieId: string;
+      spoilers: boolean;
+      eventName: string;
+      createdAt: string;
+    }>;
+    recentActivity: ProfileSnapshot["recentActivity"];
+  }>("/profile/me/history", async () => ({
+    views: [],
+    analyses: [],
+    recentActivity: []
+  }));
+}
+
+export async function fetchProfileChatSessions(): Promise<{
+  sessions: ChatSessionSnapshot[];
+}> {
+  return requestJsonOrFallback<{ sessions: ChatSessionSnapshot[] }>("/profile/me/chat-sessions", async () => ({
+    sessions: []
+  }));
+}
+
+export async function fetchProfileSearchHistory(): Promise<{
+  searches: SearchEventSnapshot[];
+}> {
+  return requestJsonOrFallback<{ searches: SearchEventSnapshot[] }>("/profile/me/search-history", async () => ({
+    searches: []
+  }));
+}
+
+export async function fetchAnalyticsSummary(): Promise<AnalyticsSummarySnapshot> {
+  return requestJsonOrFallback<AnalyticsSummarySnapshot>("/analytics/summary", async () => ({
+    total: 0,
+    byEventName: {},
+    recentEvents: []
+  }));
+}
+
+export async function fetchChatSessions(movieId?: string): Promise<{
+  sessions: ChatSessionSnapshot[];
+}> {
+  const params = movieId ? `?movieId=${encodeURIComponent(movieId)}` : "";
+  return requestJsonOrFallback<{ sessions: ChatSessionSnapshot[] }>(`/chat/sessions${params}`, async () => ({
+    sessions: []
+  }));
+}
+
+export async function fetchChatSession(sessionId: string): Promise<{
+  session: ChatSessionSnapshot;
+  messages: ChatMessageSnapshot[];
+} | null> {
+  return requestJsonOrFallback<{ session: ChatSessionSnapshot; messages: ChatMessageSnapshot[] } | null>(
+    `/chat/sessions/${encodeURIComponent(sessionId)}`,
+    async () => null
+  );
+}
+
+export async function createChatSession(movieId: string, spoilers = false): Promise<{
+  session: ChatSessionSnapshot;
+  messages: ChatMessageSnapshot[];
+}> {
+  return sceneAtlasApiRequest("/chat/sessions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      movieId,
+      spoilers
+    })
+  });
+}
+
+export async function sendChatMessage(sessionId: string, content: string): Promise<{
+  session: ChatSessionSnapshot | null;
+  messages: ChatMessageSnapshot[];
+  reply: ChatMessageSnapshot;
+  userMessage: ChatMessageSnapshot;
+}> {
+  return sceneAtlasApiRequest(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      content
+    })
+  });
+}
+
+export async function summarizeChatSession(sessionId: string): Promise<{
+  session: ChatSessionSnapshot;
+  messages: ChatMessageSnapshot[];
+}> {
+  return sceneAtlasApiRequest(`/chat/sessions/${encodeURIComponent(sessionId)}/summary`, {
+    method: "POST"
+  });
+}
+
+export async function archiveChatSession(sessionId: string): Promise<ChatSessionSnapshot> {
+  return sceneAtlasApiRequest(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE"
+  });
 }
 
 export function getFeaturedMovies() {

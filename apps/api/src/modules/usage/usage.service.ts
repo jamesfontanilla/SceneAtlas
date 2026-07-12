@@ -16,6 +16,10 @@ export class UsageService {
     return sceneAtlasStore.consumeUsage(userKey, "ANALYSIS");
   }
 
+  consumeChat(userKey: string) {
+    return sceneAtlasStore.consumeUsage(userKey, "CHAT");
+  }
+
   markPremium(userKey: string) {
     sceneAtlasStore.promoteToPremium(userKey);
   }

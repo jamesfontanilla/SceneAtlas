@@ -303,8 +303,11 @@ export const sceneAtlasReviews: ReviewPreview[] = [
 export const sceneAtlasUsage: UsageSnapshot = {
   searchesRemaining: 5,
   analysesRemaining: 2,
+  chatMessagesRemaining: 10,
   isPremium: false,
-  adsEnabled: true
+  adsEnabled: true,
+  chatMessagesUsed: 0,
+  chatMessagesLimit: 10
 };
 
 export function getSceneAtlasMovie(slug: string) {

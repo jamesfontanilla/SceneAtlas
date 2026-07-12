@@ -87,6 +87,7 @@ Phase 2 must not break:
 
 ### In Scope
 
+- Replace the demo-only homepage/catalog cards with live, data-driven featured titles from the public movie baseline
 - Movie-specific AI chat
 - Cached AI analyses and chat transcripts
 - Background jobs for analysis precompute and refresh
@@ -844,6 +845,7 @@ Phase 2 should be delivered in this order:
 
 Phase 2 is done when:
 
+- The default homepage and primary browse surfaces no longer depend on hard-coded demo titles
 - A user can chat about a movie and the chat persists
 - A user can come back and see saved history
 - Movie pages have strong SEO and structured data

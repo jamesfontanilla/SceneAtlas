@@ -77,12 +77,15 @@ export interface ReviewPreview {
 export interface UsageSnapshot {
   searchesRemaining: number;
   analysesRemaining: number;
+  chatMessagesRemaining?: number;
   isPremium: boolean;
   adsEnabled: boolean;
   searchesUsed?: number;
   analysesUsed?: number;
+  chatMessagesUsed?: number;
   searchesLimit?: number;
   analysesLimit?: number;
+  chatMessagesLimit?: number;
   dayKey?: string;
 }
 
@@ -97,9 +100,13 @@ export interface AccountSnapshot {
   displayName: string;
   email: string;
   avatar?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
   subscriptionStatus: "NONE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
   subscriptionTier: "FREE" | "PREMIUM";
   authProvider: string;
+  isAdmin?: boolean;
   watchlistCount: number;
   collectionCount: number;
   ratingCount: number;

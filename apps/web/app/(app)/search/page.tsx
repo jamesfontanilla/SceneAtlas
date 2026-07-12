@@ -1,10 +1,12 @@
-import { fetchMovies, fetchUsage } from "@/lib/api";
+import { fetchMovies, fetchSearchSuggestions, fetchTrendingQueries, fetchUsage } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { SearchToolbar } from "@/features/search/search-toolbar";
 import { SearchResults } from "@/features/search/search-results";
+import { SearchSuggestions } from "@/features/search/search-suggestions";
+import { TrendingStrip } from "@/features/search/trending-strip";
 
 interface SearchPageProps {
   searchParams: Promise<{ q?: string; genre?: string; year?: string; language?: string }>;
@@ -17,12 +19,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const year = params.year?.trim() ?? "";
   const language = params.language?.trim() ?? "";
 
-  const movies = await fetchMovies(query, {
-    genre: genre || undefined,
-    year: year ? Number(year) : undefined,
-    language: language || undefined
-  });
-  const usage = await fetchUsage();
+  const [movies, usage, trending, suggestions] = await Promise.all([
+    fetchMovies(query, {
+      genre: genre || undefined,
+      year: year ? Number(year) : undefined,
+      language: language || undefined
+    }),
+    fetchUsage(),
+    fetchTrendingQueries(),
+    fetchSearchSuggestions(query)
+  ]);
 
   return (
     <main className="app-flow">
@@ -34,6 +40,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           action={<Button href="/movies/interstellar">Open a sample movie</Button>}
         />
         <SearchToolbar genre={genre} language={language} query={query} year={year} />
+        <TrendingStrip items={trending} />
+        <SearchSuggestions query={query} suggestions={suggestions} />
       </div>
 
       <SearchResults adsEnabled={usage.adsEnabled} movies={movies} query={query || "the catalog"} />

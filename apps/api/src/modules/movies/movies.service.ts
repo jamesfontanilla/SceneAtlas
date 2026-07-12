@@ -38,7 +38,7 @@ export class MoviesService {
     @Inject(MOVIE_SOURCE_PROVIDER) private readonly provider: MovieSourceProvider
   ) {}
 
-  async search(query: string, filters: MovieSearchFilters = {}) {
+  async search(query: string, filters: MovieSearchFilters = {}, userId = "anonymous") {
     const normalizedFilters = normalizeFilters(filters);
     const cacheKey = JSON.stringify({
       provider: apiEnv.movieDataProvider,
@@ -53,15 +53,14 @@ export class MoviesService {
     try {
       const results = await this.provider.search(query);
       const filtered = results.filter((movie) => matchesMovieFilters(movie, normalizedFilters));
-
-      if (filtered.length) {
-        sceneAtlasStore.cacheSearch(cacheKey, query, normalizedFilters, filtered);
-        return filtered;
-      }
-
-      const fallback = sceneAtlasStore.searchMovies(query, normalizedFilters);
-      sceneAtlasStore.cacheSearch(cacheKey, query, normalizedFilters, fallback);
-      return fallback;
+      sceneAtlasStore.cacheSearch(cacheKey, query, normalizedFilters, filtered);
+      sceneAtlasStore.recordSearchEvent(userId, {
+        query,
+        filters: normalizedFilters,
+        resultCount: filtered.length,
+        provider: apiEnv.movieDataProvider
+      });
+      return filtered;
     } catch (error) {
       sceneAtlasStore.recordAudit("movie_provider_failure", "Movie search provider failed", {
         query,
@@ -70,13 +69,26 @@ export class MoviesService {
       });
       const fallback = sceneAtlasStore.searchMovies(query, normalizedFilters);
       sceneAtlasStore.cacheSearch(cacheKey, query, normalizedFilters, fallback);
+      sceneAtlasStore.recordSearchEvent(userId, {
+        query,
+        filters: normalizedFilters,
+        resultCount: fallback.length,
+        provider: "catalog-fallback"
+      });
       return fallback;
     }
   }
 
-  async findBySlug(movieId: string) {
+  async findBySlug(movieId: string, userId = "anonymous", referrer?: string) {
     const cached = sceneAtlasStore.getMovieCache(movieId);
     if (cached) {
+      sceneAtlasStore.recordAnalyticsEvent("movie_open", {
+        userId,
+        payload: {
+          movieId,
+          source: "cache"
+        }
+      });
       return cached.movie;
     }
 
@@ -84,6 +96,14 @@ export class MoviesService {
       const movie = await this.provider.findBySlug(movieId);
       if (movie) {
         sceneAtlasStore.cacheMovie(movie, apiEnv.movieDataProvider);
+        sceneAtlasStore.recordAnalyticsEvent("movie_open", {
+          userId,
+          payload: {
+            movieId,
+            source: apiEnv.movieDataProvider,
+            referrer
+          }
+        });
         return movie;
       }
     } catch (error) {
@@ -93,6 +113,14 @@ export class MoviesService {
       });
     }
 
+    sceneAtlasStore.recordAnalyticsEvent("movie_open", {
+      userId,
+      payload: {
+        movieId,
+        source: "catalog",
+        referrer
+      }
+    });
     return sceneAtlasStore.getMovie(movieId);
   }
 }

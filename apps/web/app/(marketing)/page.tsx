@@ -1,4 +1,4 @@
-import { sceneAtlasCollections, sceneAtlasMovies, sceneAtlasReviews, sceneAtlasUsage } from "@sceneatlas/shared";
+import { sceneAtlasCollections, sceneAtlasReviews, sceneAtlasUsage } from "@sceneatlas/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MovieCard } from "@/components/ui/movie-card";
@@ -6,9 +6,10 @@ import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { AdSlot } from "@/components/ui/ad-slot";
 import { formatRating, formatRuntime } from "@/lib/format";
+import { fetchFeaturedMovies } from "@/lib/api";
 
-export default function MarketingPage() {
-  const featured = sceneAtlasMovies.slice(0, 4);
+export default async function MarketingPage() {
+  const featured = await fetchFeaturedMovies();
 
   return (
     <main className="sceneatlas-page">

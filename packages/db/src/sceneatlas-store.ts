@@ -19,13 +19,14 @@ import {
 
 export const FREE_SEARCH_LIMIT = sceneAtlasUsage.searchesRemaining;
 export const FREE_ANALYSIS_LIMIT = sceneAtlasUsage.analysesRemaining;
+export const FREE_CHAT_LIMIT = sceneAtlasUsage.chatMessagesLimit ?? 10;
 export const FREE_COLLECTION_LIMIT = 2;
 
 export type SubscriptionTier = "FREE" | "PREMIUM";
 export type SubscriptionStatus = "NONE" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
 export type CollectionVisibility = "private" | "shared";
 export type ExportFormat = "json" | "markdown";
-export type UsageKind = "SEARCH" | "ANALYSIS" | "EXPORT" | "REVIEW" | "COLLECTION_CREATE";
+export type UsageKind = "SEARCH" | "ANALYSIS" | "CHAT" | "EXPORT" | "REVIEW" | "COLLECTION_CREATE";
 
 export interface SceneAtlasUserRecord {
   id: string;
@@ -37,6 +38,7 @@ export interface SceneAtlasUserRecord {
   subscriptionStatus: SubscriptionStatus;
   createdAt: string;
   updatedAt: string;
+  lastLoginAt?: string;
 }
 
 export interface SceneAtlasSessionRecord {
@@ -51,11 +53,13 @@ export interface UsageBucketRecord {
   dayKey: string;
   searchesUsed: number;
   analysesUsed: number;
+  chatMessagesUsed: number;
   exportUses: number;
   reviewsUsed: number;
   collectionCreates: number;
   searchesLimit: number;
   analysesLimit: number;
+  chatMessagesLimit: number;
   isPremium: boolean;
   adsEnabled: boolean;
 }
@@ -138,9 +142,93 @@ export interface ExportJobRecord {
   updatedAt: string;
 }
 
+export interface SearchEventRecord {
+  id: string;
+  userId: string;
+  query: string;
+  filters: MovieSearchFilters;
+  resultCount: number;
+  provider: string;
+  createdAt: string;
+}
+
+export interface MovieViewEventRecord {
+  id: string;
+  userId: string;
+  movieId: string;
+  spoilerEnabled: boolean;
+  referrer?: string;
+  createdAt: string;
+}
+
+export interface AnalyticsEventRecord {
+  id: string;
+  eventName: string;
+  userId?: string;
+  sessionId?: string;
+  payload?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AdminAuditLogRecord {
+  id: string;
+  actor: string;
+  action: string;
+  target?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ChatSessionRecord {
+  id: string;
+  userId: string;
+  movieId: string;
+  summary?: string;
+  provider: string;
+  model: string;
+  promptVersion: string;
+  spoilerEnabled: boolean;
+  archived: boolean;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessageRecord {
+  id: string;
+  sessionId: string;
+  role: "system" | "user" | "assistant";
+  content: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  createdAt: string;
+}
+
+export interface PromptVersionRecord {
+  id: string;
+  provider: string;
+  model: string;
+  versionKey: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditEventRecord {
   id: string;
-  kind: "search_limit" | "analysis_limit" | "movie_provider_failure" | "analysis_provider_failure" | "subscription_change" | "auth" | "export" | "collection" | "review" | "rating";
+  kind:
+    | "search_limit"
+    | "analysis_limit"
+    | "chat_limit"
+    | "movie_provider_failure"
+    | "analysis_provider_failure"
+    | "chat_provider_failure"
+    | "subscription_change"
+    | "auth"
+    | "export"
+    | "collection"
+    | "review"
+    | "rating";
   message: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -154,6 +242,14 @@ export interface SceneAtlasState {
   searchCache: SearchCacheRecord[];
   movieCache: MovieCacheRecord[];
   analysisCache: AnalysisCacheRecord[];
+  searchEvents: SearchEventRecord[];
+  movieViewEvents: MovieViewEventRecord[];
+  analyticsEvents: AnalyticsEventRecord[];
+  adminAuditLogs: AdminAuditLogRecord[];
+  chatSessions: ChatSessionRecord[];
+  chatMessages: ChatMessageRecord[];
+  promptVersions: PromptVersionRecord[];
+  featuredMovieIds: string[];
   watchlistItems: WatchlistItemRecord[];
   collections: CollectionRecord[];
   collectionItems: CollectionItemRecord[];
@@ -218,6 +314,14 @@ function createInitialState(): SceneAtlasState {
     searchCache: [],
     movieCache: [],
     analysisCache: [],
+    searchEvents: [],
+    movieViewEvents: [],
+    analyticsEvents: [],
+    adminAuditLogs: [],
+    chatSessions: [],
+    chatMessages: [],
+    promptVersions: [],
+    featuredMovieIds: [],
     watchlistItems: [],
     collections: [],
     collectionItems: [],
@@ -243,6 +347,14 @@ function coerceState(raw: Partial<SceneAtlasState> | null | undefined): SceneAtl
     searchCache: raw.searchCache ?? base.searchCache,
     movieCache: raw.movieCache ?? base.movieCache,
     analysisCache: raw.analysisCache ?? base.analysisCache,
+    searchEvents: raw.searchEvents ?? base.searchEvents,
+    movieViewEvents: raw.movieViewEvents ?? base.movieViewEvents,
+    analyticsEvents: raw.analyticsEvents ?? base.analyticsEvents,
+    adminAuditLogs: raw.adminAuditLogs ?? base.adminAuditLogs,
+    chatSessions: raw.chatSessions ?? base.chatSessions,
+    chatMessages: raw.chatMessages ?? base.chatMessages,
+    promptVersions: raw.promptVersions ?? base.promptVersions,
+    featuredMovieIds: raw.featuredMovieIds ?? base.featuredMovieIds,
     watchlistItems: raw.watchlistItems ?? base.watchlistItems,
     collections: raw.collections ?? base.collections,
     collectionItems: raw.collectionItems ?? base.collectionItems,
@@ -302,6 +414,9 @@ function userToSnapshot(user: SceneAtlasUserRecord, usage: UsageBucketRecord, st
     displayName: user.displayName,
     email: user.email,
     avatar: user.avatar,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastLoginAt: user.lastLoginAt,
     subscriptionStatus: user.subscriptionStatus,
     subscriptionTier: user.subscriptionTier,
     authProvider: user.authProvider,
@@ -317,12 +432,15 @@ function usageToSnapshot(bucket: UsageBucketRecord): UsageSnapshot {
   return {
     searchesRemaining: bucket.isPremium ? Number.MAX_SAFE_INTEGER : Math.max(bucket.searchesLimit - bucket.searchesUsed, 0),
     analysesRemaining: bucket.isPremium ? Number.MAX_SAFE_INTEGER : Math.max(bucket.analysesLimit - bucket.analysesUsed, 0),
+    chatMessagesRemaining: bucket.isPremium ? Number.MAX_SAFE_INTEGER : Math.max(bucket.chatMessagesLimit - bucket.chatMessagesUsed, 0),
     isPremium: bucket.isPremium,
     adsEnabled: bucket.adsEnabled,
     searchesUsed: bucket.searchesUsed,
     analysesUsed: bucket.analysesUsed,
+    chatMessagesUsed: bucket.chatMessagesUsed,
     searchesLimit: bucket.searchesLimit,
     analysesLimit: bucket.analysesLimit,
+    chatMessagesLimit: bucket.chatMessagesLimit,
     dayKey: bucket.dayKey
   };
 }
@@ -340,30 +458,47 @@ function currentBucket(state: SceneAtlasState, userId: string) {
       dayKey: today,
       searchesUsed: 0,
       analysesUsed: 0,
+      chatMessagesUsed: 0,
       exportUses: 0,
       reviewsUsed: 0,
       collectionCreates: 0,
       searchesLimit: FREE_SEARCH_LIMIT,
       analysesLimit: FREE_ANALYSIS_LIMIT,
+      chatMessagesLimit: FREE_CHAT_LIMIT,
       isPremium,
       adsEnabled: !isPremium
     };
     state.usageBuckets.push(bucket);
     changed = true;
-  } else if (bucket.dayKey !== today) {
+  } else {
+    if (typeof bucket.chatMessagesUsed !== "number") {
+      bucket.chatMessagesUsed = 0;
+      changed = true;
+    }
+
+    if (typeof bucket.chatMessagesLimit !== "number") {
+      bucket.chatMessagesLimit = FREE_CHAT_LIMIT;
+      changed = true;
+    }
+  }
+
+  if (bucket && bucket.dayKey !== today) {
     bucket.dayKey = today;
     bucket.searchesUsed = 0;
     bucket.analysesUsed = 0;
+    bucket.chatMessagesUsed = 0;
     bucket.exportUses = 0;
     bucket.reviewsUsed = 0;
     bucket.collectionCreates = 0;
     bucket.searchesLimit = FREE_SEARCH_LIMIT;
     bucket.analysesLimit = FREE_ANALYSIS_LIMIT;
+    bucket.chatMessagesLimit = FREE_CHAT_LIMIT;
     bucket.isPremium = isPremium;
     bucket.adsEnabled = !isPremium;
     changed = true;
   } else if (bucket.isPremium !== isPremium) {
     bucket.isPremium = isPremium;
+    bucket.chatMessagesLimit = FREE_CHAT_LIMIT;
     bucket.adsEnabled = !isPremium;
     changed = true;
   }
@@ -430,6 +565,30 @@ function rekeyUser(state: SceneAtlasState, fromUserId: string, toUserId: string)
     }
   }
 
+  for (const event of state.searchEvents) {
+    if (event.userId === fromUserId) {
+      event.userId = toUserId;
+    }
+  }
+
+  for (const event of state.movieViewEvents) {
+    if (event.userId === fromUserId) {
+      event.userId = toUserId;
+    }
+  }
+
+  for (const event of state.analyticsEvents) {
+    if (event.userId === fromUserId) {
+      event.userId = toUserId;
+    }
+  }
+
+  for (const session of state.chatSessions) {
+    if (session.userId === fromUserId) {
+      session.userId = toUserId;
+    }
+  }
+
   for (const exportJob of state.exportJobs) {
     if (exportJob.userId === fromUserId) {
       exportJob.userId = toUserId;
@@ -439,6 +598,15 @@ function rekeyUser(state: SceneAtlasState, fromUserId: string, toUserId: string)
   for (const event of state.auditEvents) {
     if (event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) && event.metadata.userId === fromUserId) {
       event.metadata = { ...event.metadata, userId: toUserId };
+    }
+  }
+
+  for (const log of state.adminAuditLogs) {
+    if (log.actor === fromUserId) {
+      log.actor = toUserId;
+    }
+    if (log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata) && log.metadata.userId === fromUserId) {
+      log.metadata = { ...log.metadata, userId: toUserId };
     }
   }
 
@@ -601,6 +769,513 @@ export const sceneAtlasStore = {
     return results;
   },
 
+  recordSearchEvent(
+    userId: string,
+    input: { query: string; filters: MovieSearchFilters; resultCount: number; provider: string }
+  ) {
+    return mutateState((state) => {
+      const record: SearchEventRecord = {
+        id: randomUUID(),
+        userId,
+        query: input.query,
+        filters: input.filters,
+        resultCount: input.resultCount,
+        provider: input.provider,
+        createdAt: nowIso()
+      };
+      state.searchEvents.push(record);
+      state.analyticsEvents.push({
+        id: randomUUID(),
+        eventName: "search_submission",
+        userId,
+        payload: {
+          query: input.query,
+          resultCount: input.resultCount,
+          provider: input.provider,
+          filters: input.filters
+        },
+        createdAt: record.createdAt
+      });
+      return record;
+    });
+  },
+
+  recordMovieViewEvent(
+    userId: string,
+    movieId: string,
+    spoilerEnabled: boolean,
+    referrer?: string
+  ) {
+    return mutateState((state) => {
+      const record: MovieViewEventRecord = {
+        id: randomUUID(),
+        userId,
+        movieId,
+        spoilerEnabled,
+        referrer,
+        createdAt: nowIso()
+      };
+      state.movieViewEvents.push(record);
+      state.analyticsEvents.push({
+        id: randomUUID(),
+        eventName: "movie_view",
+        userId,
+        payload: {
+          movieId,
+          spoilerEnabled,
+          referrer
+        },
+        createdAt: record.createdAt
+      });
+      return record;
+    });
+  },
+
+  recordAnalyticsEvent(
+    eventName: string,
+    input: { userId?: string; sessionId?: string; payload?: Record<string, unknown> } = {}
+  ) {
+    return mutateState((state) => {
+      const record: AnalyticsEventRecord = {
+        id: randomUUID(),
+        eventName,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        payload: input.payload,
+        createdAt: nowIso()
+      };
+      state.analyticsEvents.push(record);
+      return record;
+    });
+  },
+
+  listSearchEvents(userId?: string, limit = 25) {
+    const state = readState();
+    const items = userId ? state.searchEvents.filter((event) => event.userId === userId) : state.searchEvents;
+    return [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  listMovieViewEvents(userId?: string, limit = 25) {
+    const state = readState();
+    const items = userId ? state.movieViewEvents.filter((event) => event.userId === userId) : state.movieViewEvents;
+    return [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  listAnalyticsEvents(limit = 50, eventNames?: string[]) {
+    const state = readState();
+    const filtered = eventNames?.length ? state.analyticsEvents.filter((event) => eventNames.includes(event.eventName)) : state.analyticsEvents;
+    return [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  getAnalyticsSummary() {
+    const state = readState();
+    const counts = new Map<string, number>();
+    for (const event of state.analyticsEvents) {
+      counts.set(event.eventName, (counts.get(event.eventName) ?? 0) + 1);
+    }
+
+    return {
+      total: state.analyticsEvents.length,
+      byEventName: Object.fromEntries(counts.entries()),
+      recentEvents: [...state.analyticsEvents].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 12)
+    };
+  },
+
+  recordAdminAudit(actor: string, action: string, target?: string, metadata?: Record<string, unknown>) {
+    return mutateState((state) => {
+      const record: AdminAuditLogRecord = {
+        id: randomUUID(),
+        actor,
+        action,
+        target,
+        metadata,
+        createdAt: nowIso()
+      };
+      state.adminAuditLogs.push(record);
+      return record;
+    });
+  },
+
+  listAdminAuditLogs(limit = 50) {
+    const state = readState();
+    return [...state.adminAuditLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  getPromptVersion(provider: string, model: string) {
+    return mutateState((state) => {
+      const existing = state.promptVersions.find((item) => item.provider === provider && item.model === model && item.active);
+      if (existing) {
+        return existing;
+      }
+
+      const now = nowIso();
+      const record: PromptVersionRecord = {
+        id: randomUUID(),
+        provider,
+        model,
+        versionKey: `${provider}:${model}:v1`,
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      };
+      state.promptVersions.push(record);
+      return record;
+    });
+  },
+
+  activatePromptVersion(provider: string, model: string, versionKey: string) {
+    return mutateState((state) => {
+      const now = nowIso();
+      for (const version of state.promptVersions) {
+        if (version.provider === provider && version.model === model) {
+          version.active = version.versionKey === versionKey;
+          version.updatedAt = now;
+        }
+      }
+
+      let record = state.promptVersions.find(
+        (item) => item.provider === provider && item.model === model && item.versionKey === versionKey
+      );
+      if (!record) {
+        record = {
+          id: randomUUID(),
+          provider,
+          model,
+          versionKey,
+          active: true,
+          createdAt: now,
+          updatedAt: now
+        };
+        state.promptVersions.push(record);
+      }
+
+      record.active = true;
+      record.updatedAt = now;
+      return record;
+    });
+  },
+
+  listChatSessions(userId?: string, movieId?: string, limit = 25) {
+    const state = readState();
+    const sessions = state.chatSessions.filter((session) => {
+      if (userId && session.userId !== userId) {
+        return false;
+      }
+
+      if (movieId && session.movieId !== movieId) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return [...sessions]
+      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
+      .slice(0, limit)
+      .map((session) => {
+        const messages = state.chatMessages.filter((message) => message.sessionId === session.id);
+        return {
+          ...session,
+          messageCount: messages.length,
+          lastMessage: messages[messages.length - 1] ?? null
+        };
+      });
+  },
+
+  getChatSession(sessionId: string) {
+    const state = readState();
+    return state.chatSessions.find((session) => session.id === sessionId) ?? null;
+  },
+
+  getChatMessages(sessionId: string) {
+    const state = readState();
+    return [...state.chatMessages]
+      .filter((message) => message.sessionId === sessionId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  createChatSession(
+    userId: string,
+    movieId: string,
+    input: {
+      spoilerEnabled: boolean;
+      provider: string;
+      model: string;
+      promptVersion?: string;
+      summary?: string;
+      archived?: boolean;
+    }
+  ) {
+    return mutateState((state) => {
+      const now = nowIso();
+      const existing = state.chatSessions.find(
+        (session) => session.userId === userId && session.movieId === movieId && session.spoilerEnabled === input.spoilerEnabled && !session.archived
+      );
+      if (existing) {
+        existing.provider = input.provider;
+        existing.model = input.model;
+        existing.promptVersion = input.promptVersion ?? existing.promptVersion;
+        existing.summary = input.summary ?? existing.summary;
+        existing.archived = input.archived ?? existing.archived;
+        existing.updatedAt = now;
+        return existing;
+      }
+
+      const session: ChatSessionRecord = {
+        id: randomUUID(),
+        userId,
+        movieId,
+        summary: input.summary,
+        provider: input.provider,
+        model: input.model,
+        promptVersion: input.promptVersion ?? `${input.provider}:${input.model}:v1`,
+        spoilerEnabled: input.spoilerEnabled,
+        archived: input.archived ?? false,
+        lastMessageAt: now,
+        createdAt: now,
+        updatedAt: now
+      };
+      state.chatSessions.push(session);
+      state.analyticsEvents.push({
+        id: randomUUID(),
+        eventName: "chat_start",
+        userId,
+        payload: {
+          movieId,
+          spoilerEnabled: input.spoilerEnabled,
+          provider: input.provider,
+          model: input.model
+        },
+        createdAt: now
+      });
+      return session;
+    });
+  },
+
+  appendChatMessage(
+    sessionId: string,
+    input: {
+      role: "system" | "user" | "assistant";
+      content: string;
+      inputTokens?: number;
+      outputTokens?: number;
+    }
+  ) {
+    return mutateState((state) => {
+      const session = state.chatSessions.find((item) => item.id === sessionId);
+      if (!session) {
+        throw new SceneAtlasError("Chat session not found.", "NOT_FOUND");
+      }
+
+      const now = nowIso();
+      const message: ChatMessageRecord = {
+        id: randomUUID(),
+        sessionId,
+        role: input.role,
+        content: input.content,
+        inputTokens: input.inputTokens,
+        outputTokens: input.outputTokens,
+        createdAt: now
+      };
+      state.chatMessages.push(message);
+      session.lastMessageAt = now;
+      session.updatedAt = now;
+      session.archived = false;
+      return message;
+    });
+  },
+
+  updateChatSessionSummary(sessionId: string, summary: string) {
+    return mutateState((state) => {
+      const session = state.chatSessions.find((item) => item.id === sessionId);
+      if (!session) {
+        throw new SceneAtlasError("Chat session not found.", "NOT_FOUND");
+      }
+
+      session.summary = summary;
+      session.updatedAt = nowIso();
+      return session;
+    });
+  },
+
+  archiveChatSession(sessionId: string) {
+    return mutateState((state) => {
+      const session = state.chatSessions.find((item) => item.id === sessionId);
+      if (!session) {
+        throw new SceneAtlasError("Chat session not found.", "NOT_FOUND");
+      }
+
+      session.archived = true;
+      session.updatedAt = nowIso();
+      return session;
+    });
+  },
+
+  getFeaturedMovies(limit = 4) {
+    const catalog = sceneAtlasMovies.map(movieToBrief);
+    const bySlug = new Map(catalog.map((movie) => [movie.slug, movie]));
+    const state = readState();
+    const scores = new Map<string, number>();
+
+    for (const movie of catalog) {
+      scores.set(movie.slug, 0);
+    }
+
+    state.featuredMovieIds.forEach((slug, index) => {
+      scores.set(slug, (scores.get(slug) ?? 0) + 1_000 - index * 5);
+    });
+
+    for (const item of state.movieViewEvents) {
+      scores.set(item.movieId, (scores.get(item.movieId) ?? 0) + 5);
+    }
+
+    for (const item of state.watchlistItems) {
+      scores.set(item.movieId, (scores.get(item.movieId) ?? 0) + 3);
+    }
+
+    for (const item of state.ratings) {
+      scores.set(item.movieId, (scores.get(item.movieId) ?? 0) + item.value);
+    }
+
+    for (const item of state.reviews) {
+      scores.set(item.movieId, (scores.get(item.movieId) ?? 0) + 2);
+    }
+
+    return [...catalog]
+      .sort((left, right) => {
+        const scoreDelta = (scores.get(right.slug) ?? 0) - (scores.get(left.slug) ?? 0);
+        if (scoreDelta !== 0) {
+          return scoreDelta;
+        }
+
+        return right.rating - left.rating;
+      })
+      .slice(0, limit)
+      .map((movie) => bySlug.get(movie.slug) ?? movie);
+  },
+
+  featureMovie(movieId: string, featured = true, actor = "admin") {
+    return mutateState((state) => {
+      const movie = ensureMovie(movieId);
+      if (!movie) {
+        throw new SceneAtlasError("Movie not found.", "NOT_FOUND");
+      }
+
+      state.featuredMovieIds = state.featuredMovieIds.filter((slug) => slug !== movieId);
+      if (featured) {
+        state.featuredMovieIds.unshift(movieId);
+      }
+
+      const now = nowIso();
+      state.adminAuditLogs.push({
+        id: randomUUID(),
+        actor,
+        action: featured ? "feature_movie" : "unfeature_movie",
+        target: movieId,
+        metadata: {
+          movieId,
+          title: movie.title
+        },
+        createdAt: now
+      });
+      state.analyticsEvents.push({
+        id: randomUUID(),
+        eventName: featured ? "feature_title" : "unfeature_title",
+        userId: actor,
+        payload: {
+          movieId,
+          title: movie.title
+        },
+        createdAt: now
+      });
+      return movieToBrief(movie);
+    });
+  },
+
+  getTrendingQueries(limit = 8) {
+    const state = readState();
+    const counts = new Map<string, { query: string; count: number; lastSeenAt: string }>();
+
+    for (const event of state.searchEvents) {
+      const key = event.query.trim().toLowerCase();
+      const entry = counts.get(key) ?? { query: event.query.trim(), count: 0, lastSeenAt: event.createdAt };
+      entry.count += 1;
+      if (event.createdAt > entry.lastSeenAt) {
+        entry.lastSeenAt = event.createdAt;
+        entry.query = event.query.trim();
+      }
+      counts.set(key, entry);
+    }
+
+    if (!counts.size) {
+      for (const movie of sceneAtlasMovies.slice(0, limit)) {
+        counts.set(movie.slug, {
+          query: movie.title,
+          count: 1,
+          lastSeenAt: movie.releaseDate ?? new Date().toISOString()
+        });
+      }
+    }
+
+    return [...counts.values()].sort((a, b) => b.count - a.count || b.lastSeenAt.localeCompare(a.lastSeenAt)).slice(0, limit);
+  },
+
+  getSearchSuggestions(query: string, limit = 6) {
+    const normalized = query.trim().toLowerCase();
+    const suggestions = new Map<string, string>();
+
+    for (const trending of sceneAtlasStore.getTrendingQueries(limit)) {
+      if (!normalized || trending.query.toLowerCase().includes(normalized)) {
+        suggestions.set(trending.query, trending.query);
+      }
+    }
+
+    for (const movie of sceneAtlasMovies) {
+      const tokens = [movie.title, movie.tagline, movie.genres.join(" "), movie.cast.join(" ")];
+      if (!normalized || tokens.join(" ").toLowerCase().includes(normalized)) {
+        suggestions.set(movie.title, movie.title);
+      }
+    }
+
+    return [...suggestions.values()].slice(0, limit);
+  },
+
+  getSearchHistory(userId: string, limit = 20) {
+    return sceneAtlasStore.listSearchEvents(userId, limit);
+  },
+
+  getMovieHistory(userId: string, limit = 20) {
+    return sceneAtlasStore.listMovieViewEvents(userId, limit);
+  },
+
+  getRecentActivity(userId: string, limit = 12) {
+    const activity = [
+      ...sceneAtlasStore.listSearchEvents(userId, limit).map((event) => ({
+        kind: "search" as const,
+        title: event.query,
+        detail: `${event.resultCount} results`,
+        createdAt: event.createdAt
+      })),
+      ...sceneAtlasStore.listMovieViewEvents(userId, limit).map((event) => ({
+        kind: "view" as const,
+        title: sceneAtlasStore.getMovieBrief(event.movieId)?.title ?? event.movieId,
+        detail: event.spoilerEnabled ? "Spoilers enabled" : "Spoilers hidden",
+        createdAt: event.createdAt
+      })),
+      ...sceneAtlasStore
+        .listAnalyticsEvents(limit * 2, ["chat_start", "chat_message", "analysis_request"])
+        .filter((event) => event.userId === userId)
+        .map((event) => ({
+          kind: "analytics" as const,
+          title: event.eventName,
+          detail: typeof event.payload?.movieId === "string" ? event.payload.movieId : "Activity recorded",
+          createdAt: event.createdAt
+        }))
+    ];
+
+    return activity.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
   consumeUsage(userId: string, kind: UsageKind) {
     return mutateState((state) => {
       const { bucket } = currentBucket(state, userId);
@@ -631,6 +1306,18 @@ export const sceneAtlasStore = {
           throw new SceneAtlasError("Daily AI analysis limit reached. Upgrade for premium access.", "QUOTA_EXCEEDED");
         }
         bucket.analysesUsed += 1;
+      } else if (kind === "CHAT") {
+        if (!isPremium && bucket.chatMessagesUsed >= bucket.chatMessagesLimit) {
+          state.auditEvents.push({
+            id: randomUUID(),
+            kind: "chat_limit",
+            message: "Daily chat limit reached",
+            metadata: { userId },
+            createdAt: nowIso()
+          });
+          throw new SceneAtlasError("Daily chat limit reached. Upgrade for more AI conversations.", "QUOTA_EXCEEDED");
+        }
+        bucket.chatMessagesUsed += 1;
       } else if (kind === "EXPORT") {
         bucket.exportUses += 1;
       } else if (kind === "REVIEW") {
@@ -681,6 +1368,7 @@ export const sceneAtlasStore = {
         existing.subscriptionTier = input.subscriptionTier ?? existing.subscriptionTier;
         existing.subscriptionStatus = input.subscriptionStatus ?? existing.subscriptionStatus;
         existing.updatedAt = now;
+        existing.lastLoginAt = now;
         const { bucket } = currentBucket(state, existing.id);
         bucket.isPremium = existing.subscriptionTier === "PREMIUM";
         bucket.adsEnabled = !bucket.isPremium;
@@ -696,7 +1384,8 @@ export const sceneAtlasStore = {
         subscriptionTier: input.subscriptionTier ?? "FREE",
         subscriptionStatus: input.subscriptionStatus ?? "NONE",
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        lastLoginAt: now
       };
       state.users.push(user);
       currentBucket(state, user.id);
@@ -1260,6 +1949,48 @@ export const sceneAtlasStore = {
     return state.analysisCache.find((item) => item.movieId === movieId && item.spoilerEnabled === spoilerEnabled) ?? null;
   },
 
+  clearSearchCache() {
+    mutateState((state) => {
+      state.searchCache = [];
+      return true;
+    });
+  },
+
+  clearMovieCache(movieId?: string) {
+    mutateState((state) => {
+      state.movieCache = movieId ? state.movieCache.filter((item) => item.movieId !== movieId) : [];
+      return true;
+    });
+  },
+
+  clearAnalysisCache(movieId?: string, spoilerEnabled?: boolean) {
+    mutateState((state) => {
+      state.analysisCache = state.analysisCache.filter((item) => {
+        if (movieId && item.movieId !== movieId) {
+          return true;
+        }
+
+        if (typeof spoilerEnabled === "boolean" && item.spoilerEnabled !== spoilerEnabled) {
+          return true;
+        }
+
+        return false;
+      });
+      return true;
+    });
+  },
+
+  listExportJobs(limit = 25) {
+    const state = readState();
+    return [...state.exportJobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
+  listAuditEvents(limit = 50, kinds?: AuditEventRecord["kind"][]) {
+    const state = readState();
+    const filtered = kinds?.length ? state.auditEvents.filter((event) => kinds.includes(event.kind)) : state.auditEvents;
+    return [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+  },
+
   recordAudit(kind: AuditEventRecord["kind"], message: string, metadata?: Record<string, unknown>) {
     mutateState((state) => {
       state.auditEvents.push({
@@ -1276,15 +2007,26 @@ export const sceneAtlasStore = {
   getOpsSnapshot() {
     const state = readState();
     const premiumUsers = state.users.filter((user) => user.subscriptionTier === "PREMIUM").length;
-    const failedRequests = state.auditEvents.filter((event) => event.kind === "analysis_provider_failure" || event.kind === "movie_provider_failure");
+    const failedRequests = state.auditEvents.filter(
+      (event) =>
+        event.kind === "analysis_provider_failure" ||
+        event.kind === "movie_provider_failure" ||
+        event.kind === "chat_provider_failure"
+    );
 
     return {
       users: state.users.length,
       premiumUsers,
       searchCacheEntries: state.searchCache.length,
       analysisCacheEntries: state.analysisCache.length,
+      searchEvents: state.searchEvents.length,
+      movieViewEvents: state.movieViewEvents.length,
+      chatSessions: state.chatSessions.length,
+      analyticsEvents: state.analyticsEvents.length,
       failedRequests: failedRequests.length,
-      quotaDenials: state.auditEvents.filter((event) => event.kind === "search_limit" || event.kind === "analysis_limit").length,
+      quotaDenials: state.auditEvents.filter(
+        (event) => event.kind === "search_limit" || event.kind === "analysis_limit" || event.kind === "chat_limit"
+      ).length,
       subscriptions: state.users.map((user) => ({
         id: user.id,
         displayName: user.displayName,

@@ -13,6 +13,7 @@ import {
 } from "@sceneatlas/db";
 import type { AccountSnapshot, UsageSnapshot } from "@sceneatlas/shared";
 import { apiEnv } from "../../config/env";
+import { isAdminEmail } from "../../common/admin";
 
 export interface RegisterInput {
   name: string;
@@ -251,7 +252,8 @@ export class AuthService {
     }
 
     this.syncMirrorUser(user);
-    return sceneAtlasStore.getAccount(user.id);
+    const account = sceneAtlasStore.getAccount(user.id);
+    return account ? { ...account, isAdmin: isAdminEmail(user.email) } : null;
   }
 
   private async sendVerificationEmail(user: {
