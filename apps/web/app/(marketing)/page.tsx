@@ -1,4 +1,4 @@
-import { sceneAtlasCollections, sceneAtlasReviews, sceneAtlasUsage } from "@sceneatlas/shared";
+import { sceneAtlasCollections, sceneAtlasMovies, sceneAtlasReviews, sceneAtlasUsage } from "@sceneatlas/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MovieCard } from "@/components/ui/movie-card";
@@ -9,7 +9,10 @@ import { formatRating, formatRuntime } from "@/lib/format";
 import { fetchFeaturedMovies } from "@/lib/api";
 
 export default async function MarketingPage() {
-  const featured = await fetchFeaturedMovies();
+  const featured = await fetchFeaturedMovies().catch((error) => {
+    console.warn("SceneAtlas featured titles could not be loaded from the API; using the shared catalog fallback.", error);
+    return sceneAtlasMovies.slice(0, 4);
+  });
 
   return (
     <main className="sceneatlas-page">
